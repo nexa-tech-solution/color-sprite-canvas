@@ -55,8 +55,10 @@ export function PaintApp() {
 function TopBar() {
   const undo = usePaintStore((s) => s.undo);
   const redo = usePaintStore((s) => s.redo);
+  const clearAll = usePaintStore((s) => s.clearAll);
   const canUndo = usePaintStore((s) => s.history.length > 0);
   const canRedo = usePaintStore((s) => s.future.length > 0);
+  const hasContent = usePaintStore((s) => s.strokes.length > 0 || s.images.length > 0);
   const fileRef = useRef<HTMLInputElement>(null);
   const addImage = usePaintStore((s) => s.addImage);
   const transform = usePaintStore((s) => s.transform);
@@ -110,6 +112,7 @@ function TopBar() {
         <div className="flex bg-paint-panel/80 backdrop-blur-md p-1 rounded-2xl shadow-soft border border-slate-100">
           <IconBtn label="Undo" disabled={!canUndo} onClick={undo}><Undo2 className="size-4" /></IconBtn>
           <IconBtn label="Redo" disabled={!canRedo} onClick={redo}><Redo2 className="size-4" /></IconBtn>
+          <IconBtn label="Clear all" disabled={!hasContent} onClick={clearAll}><Trash2 className="size-4 text-rose-500" /></IconBtn>
         </div>
         <button
           onClick={onImport}
