@@ -55,8 +55,10 @@ export function PaintApp() {
 function TopBar() {
   const undo = usePaintStore((s) => s.undo);
   const redo = usePaintStore((s) => s.redo);
+  const clearAll = usePaintStore((s) => s.clearAll);
   const canUndo = usePaintStore((s) => s.history.length > 0);
   const canRedo = usePaintStore((s) => s.future.length > 0);
+  const hasContent = usePaintStore((s) => s.strokes.length > 0 || s.images.length > 0);
   const fileRef = useRef<HTMLInputElement>(null);
   const addImage = usePaintStore((s) => s.addImage);
   const transform = usePaintStore((s) => s.transform);
