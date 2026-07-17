@@ -112,6 +112,7 @@ function TopBar() {
         <div className="flex bg-paint-panel/80 backdrop-blur-md p-1 rounded-2xl shadow-soft border border-slate-100">
           <IconBtn label="Undo" disabled={!canUndo} onClick={undo}><Undo2 className="size-4" /></IconBtn>
           <IconBtn label="Redo" disabled={!canRedo} onClick={redo}><Redo2 className="size-4" /></IconBtn>
+          <IconBtn label="Clear all" disabled={!hasContent} onClick={clearAll}><Trash2 className="size-4 text-rose-500" /></IconBtn>
         </div>
         <button
           onClick={onImport}
