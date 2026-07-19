@@ -48,7 +48,7 @@ function ProjectsHome() {
 
   const handleCreateProject = () => {
     const project = createProject({
-      name: `Sketch ${projects.length + 1}`,
+      name: `Coloring Page ${projects.length + 1}`,
     });
 
     navigate({
@@ -60,7 +60,7 @@ function ProjectsHome() {
   if (!mounted) {
     return (
       <div className="fixed inset-0 flex items-center justify-center bg-[#fbfcfe] text-slate-500">
-        <div className="text-sm font-medium">Loading projects…</div>
+        <div className="text-sm font-medium">Loading coloring pages...</div>
       </div>
     );
   }
@@ -75,16 +75,16 @@ function ProjectsHome() {
           <div className="w-full">
             <div className="inline-flex items-center gap-1.5 rounded-full bg-[#ffe9df] px-3 py-1.5 text-[9px] font-semibold uppercase tracking-[0.24em] text-[#71819e]">
               <Sparkles className="size-3" />
-              Project library
+              Little artists club
             </div>
 
             <h1 className="mt-3.5 text-[36px] font-semibold leading-[0.98] tracking-[-0.055em] text-[#17243a] sm:text-[46px]">
-              Every canvas in one cozy place.
+              Open a page and let the coloring begin.
             </h1>
 
             <p className="mt-2.5 text-[13px] leading-relaxed text-[#697b9a] sm:text-[15px]">
-              Open a saved sketch, rename it from the editor header, and keep building without
-              losing the thread between ideas.
+              Keep every saved coloring page in one cozy shelf, then jump back in whenever your
+              little artist is ready.
             </p>
 
             <button
@@ -92,7 +92,7 @@ function ProjectsHome() {
               className="mt-5 inline-flex items-center justify-center gap-2 rounded-[15px] bg-[#17243a] px-5 py-2.5 text-xs font-semibold text-white shadow-[0_12px_24px_-16px_rgba(23,36,58,0.65)] transition-transform duration-200 hover:-translate-y-0.5 active:translate-y-0"
             >
               <Plus className="size-3.5" />
-              New project
+              New coloring page
             </button>
           </div>
         </header>
@@ -118,17 +118,17 @@ function EmptyLibrary({ onCreateProject }: { onCreateProject: () => void }) {
         <PenLine className="size-[18px]" />
       </div>
       <h2 className="mt-4 text-xl font-semibold tracking-[-0.04em] text-[#17243a]">
-        Your first canvas starts here.
+        Your first coloring page starts here.
       </h2>
       <p className="mt-2 max-w-md text-[13px] leading-relaxed text-[#697b9a]">
-        Create a project and it will stay ready for your next drawing session.
+        Create a page, pick a picture, and it will stay ready for the next coloring session.
       </p>
       <button
         onClick={onCreateProject}
         className="mt-5 inline-flex items-center gap-2 rounded-[15px] bg-[#17243a] px-5 py-2.5 text-xs font-semibold text-white transition-transform duration-200 hover:-translate-y-0.5 active:translate-y-0"
       >
         <Plus className="size-3.5" />
-        New project
+        New coloring page
       </button>
     </section>
   );

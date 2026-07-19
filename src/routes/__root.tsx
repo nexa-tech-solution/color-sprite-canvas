@@ -77,18 +77,18 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "PastelPaint — Cute infinite canvas painting" },
+      { title: "Tiny Color Club | A cozy coloring book for kids" },
       {
         name: "description",
         content:
-          "A cozy, infinite-canvas painting app. Draw, import photos, and turn any image into a coloring page you can paint right in your browser.",
+          "A cozy coloring book for kids. Pick a page, color inside the picture, and turn your own photos into printable-style coloring sheets.",
       },
-      { name: "author", content: "PastelPaint" },
-      { property: "og:title", content: "PastelPaint — Cute infinite canvas painting" },
+      { name: "author", content: "Tiny Color Club" },
+      { property: "og:title", content: "Tiny Color Club | A cozy coloring book for kids" },
       {
         property: "og:description",
         content:
-          "Draw, import photos, and turn any image into a coloring page — right in your browser.",
+          "Pick a page, color inside the picture, and turn your own photos into a coloring sheet right in your browser.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },

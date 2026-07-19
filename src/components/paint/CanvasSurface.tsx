@@ -16,6 +16,44 @@ function getImage(src: string): HTMLImageElement {
   return img;
 }
 
+function getBackgroundImage(images: CanvasImage[]) {
+  return images.find((image) => image.kind !== "sticker") ?? null;
+}
+
+function clamp(value: number, min: number, max: number) {
+  return Math.min(max, Math.max(min, value));
+}
+
+function containImageWithinBackground(image: CanvasImage, background: CanvasImage | null) {
+  if (!background || image.kind !== "sticker") return image;
+
+  return {
+    ...image,
+    x: clamp(image.x, background.x, background.x + background.width - image.width),
+    y: clamp(image.y, background.y, background.y + background.height - image.height),
+  };
+}
+
+function pointInImage(point: Point, image: CanvasImage | null) {
+  if (!image) return true;
+
+  return (
+    point.x >= image.x &&
+    point.x <= image.x + image.width &&
+    point.y >= image.y &&
+    point.y <= image.y + image.height
+  );
+}
+
+function clampPointToImage(point: Point, image: CanvasImage | null) {
+  if (!image) return point;
+
+  return {
+    x: clamp(point.x, image.x, image.x + image.width),
+    y: clamp(point.y, image.y, image.y + image.height),
+  };
+}
+
 export function CanvasSurface() {
   const ref = useRef<HTMLCanvasElement>(null);
   const rafRef = useRef<number | null>(null);
@@ -46,7 +84,11 @@ export function CanvasSurface() {
 
   // resize
   useEffect(() => {
-    const onResize = () => setSize({ w: window.innerWidth, h: window.innerHeight });
+    const onResize = () => {
+      const viewport = { w: window.innerWidth, h: window.innerHeight };
+      setSize(viewport);
+      usePaintStore.getState().setViewport({ width: viewport.w, height: viewport.h });
+    };
     onResize();
     window.addEventListener("resize", onResize);
     return () => window.removeEventListener("resize", onResize);
@@ -69,7 +111,13 @@ export function CanvasSurface() {
         (e.key === "Delete" || e.key === "Backspace") &&
         usePaintStore.getState().selectedImageId
       ) {
-        usePaintStore.getState().removeImage(usePaintStore.getState().selectedImageId!);
+        const selectedImage = usePaintStore
+          .getState()
+          .images.find((image) => image.id === usePaintStore.getState().selectedImageId);
+
+        if (selectedImage?.kind === "sticker") {
+          usePaintStore.getState().removeImage(selectedImage.id);
+        }
       }
     };
     const up = (e: KeyboardEvent) => {
@@ -98,6 +146,7 @@ export function CanvasSurface() {
 
     const st = usePaintStore.getState();
     const { transform, strokes, images, selectedImageId, tool } = st;
+    const background = getBackgroundImage(images);
 
     const drawImage = (im: CanvasImage) => {
       const img = getImage(im.src);
@@ -123,6 +172,23 @@ export function CanvasSurface() {
     const bgImages = images.filter((i) => !i.isOutline && i.kind !== "sticker");
     const outlineImages = images.filter((i) => i.isOutline && i.kind !== "sticker");
     const stickerImages = images.filter((i) => i.kind === "sticker");
+
+    if (background) {
+      ctx.save();
+      ctx.fillStyle = "#ffffff";
+      ctx.shadowColor = "rgba(15, 23, 42, 0.12)";
+      ctx.shadowBlur = 28;
+      ctx.shadowOffsetY = 12;
+      ctx.fillRect(background.x, background.y, background.width, background.height);
+      ctx.restore();
+    }
+
+    if (background) {
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(background.x, background.y, background.width, background.height);
+      ctx.clip();
+    }
 
     for (const im of bgImages) drawImage(im);
 
@@ -168,12 +234,16 @@ export function CanvasSurface() {
       ctx.restore();
     }
 
+    if (background) {
+      ctx.restore();
+    }
+
     for (const im of stickerImages) drawImage(im);
 
     // selection outline
     if (selectedImageId && tool === "select") {
       const im = images.find((i) => i.id === selectedImageId);
-      if (im) {
+      if (im?.kind === "sticker") {
         ctx.save();
         ctx.strokeStyle = "#ec4899";
         ctx.lineWidth = 2 / transform.scale;
@@ -244,7 +314,7 @@ export function CanvasSurface() {
     if (!st.selectedImageId || st.tool !== "select") return null;
 
     const image = st.images.find((im) => im.id === st.selectedImageId);
-    if (!image) return null;
+    if (!image || image.kind !== "sticker") return null;
 
     const radius = Math.max(14 / st.transform.scale, 8);
     const handles: Array<{ handle: ResizeHandle; x: number; y: number }> = [
@@ -293,14 +363,16 @@ export function CanvasSurface() {
       const hit = hitImage(wp);
       if (hit) {
         st.selectImage(hit.id);
-        dragImgRef.current = {
-          id: hit.id,
-          startX: e.clientX,
-          startY: e.clientY,
-          imgX: hit.x,
-          imgY: hit.y,
-          historyCaptured: false,
-        };
+        if (hit.kind === "sticker") {
+          dragImgRef.current = {
+            id: hit.id,
+            startX: e.clientX,
+            startY: e.clientY,
+            imgX: hit.x,
+            imgY: hit.y,
+            historyCaptured: false,
+          };
+        }
       } else {
         st.selectImage(null);
       }
@@ -308,6 +380,8 @@ export function CanvasSurface() {
     }
     // drawing
     const wp = screenToWorld(e.clientX, e.clientY);
+    const background = getBackgroundImage(st.images);
+    if (!pointInImage(wp, background)) return;
     const id = crypto.randomUUID();
     const tool = st.tool as "pencil" | "brush" | "marker" | "eraser";
     const sizes: Record<string, number> = {
@@ -351,6 +425,9 @@ export function CanvasSurface() {
     if (resizeImgRef.current) {
       const wp = screenToWorld(e.clientX, e.clientY);
       const resize = resizeImgRef.current;
+      const currentImage = st.images.find((image) => image.id === resize.id);
+      if (!currentImage) return;
+      const background = getBackgroundImage(st.images);
       const rawWidth = Math.abs(wp.x - resize.anchorX);
       const rawHeight = Math.abs(wp.y - resize.anchorY);
       const minScale = Math.max(0.08, 24 / resize.startWidth, 24 / resize.startHeight);
@@ -363,31 +440,47 @@ export function CanvasSurface() {
       const height = resize.startHeight * scale;
       const x = resize.handle.includes("w") ? resize.anchorX - width : resize.anchorX;
       const y = resize.handle.includes("n") ? resize.anchorY - height : resize.anchorY;
+      const nextImage = containImageWithinBackground(
+        { ...currentImage, x, y, width, height },
+        background,
+      );
 
       if (!resize.historyCaptured) {
         st.pushHistory();
         resize.historyCaptured = true;
       }
 
-      st.updateImage(resize.id, { x, y, width, height });
+      st.updateImage(resize.id, {
+        x: nextImage.x,
+        y: nextImage.y,
+        width: nextImage.width,
+        height: nextImage.height,
+      });
       return;
     }
     if (dragImgRef.current) {
       const t = st.transform;
+      const currentImage = st.images.find((image) => image.id === dragImgRef.current?.id);
+      if (!currentImage) return;
       const dx = (e.clientX - dragImgRef.current.startX) / t.scale;
       const dy = (e.clientY - dragImgRef.current.startY) / t.scale;
       if (!dragImgRef.current.historyCaptured && (dx !== 0 || dy !== 0)) {
         st.pushHistory();
         dragImgRef.current.historyCaptured = true;
       }
-      st.updateImage(dragImgRef.current.id, {
-        x: dragImgRef.current.imgX + dx,
-        y: dragImgRef.current.imgY + dy,
-      });
+      const nextImage = containImageWithinBackground(
+        {
+          ...currentImage,
+          x: dragImgRef.current.imgX + dx,
+          y: dragImgRef.current.imgY + dy,
+        },
+        getBackgroundImage(st.images),
+      );
+      st.updateImage(dragImgRef.current.id, { x: nextImage.x, y: nextImage.y });
       return;
     }
     if (drawingRef.current) {
-      const wp = screenToWorld(e.clientX, e.clientY);
+      const wp = clampPointToImage(screenToWorld(e.clientX, e.clientY), getBackgroundImage(st.images));
       st.extendStroke(drawingRef.current.id, wp);
     }
   };

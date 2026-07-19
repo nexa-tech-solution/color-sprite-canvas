@@ -16,6 +16,18 @@ interface Snapshot {
   images: CanvasImage[];
 }
 
+interface Viewport {
+  width: number;
+  height: number;
+}
+
+interface ViewportFrame {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+}
+
 interface PaintState {
   currentProjectId: string | null;
   currentProjectName: string;
@@ -30,6 +42,7 @@ interface PaintState {
   recentColors: string[];
 
   transform: Transform;
+  viewport: Viewport;
 
   strokes: Stroke[];
   images: CanvasImage[];
@@ -46,10 +59,15 @@ interface PaintState {
   setColor: (c: string) => void;
   setBrushSize: (n: number) => void;
   setOpacity: (n: number) => void;
+  setViewport: (viewport: Viewport) => void;
   setTransform: (t: Transform) => void;
   panBy: (dx: number, dy: number) => void;
   zoomAt: (factor: number, cx: number, cy: number) => void;
   resetView: () => void;
+  setBackgroundImage: (
+    image: CanvasImage,
+    options?: { keepWelcome?: boolean; selectImageId?: string | null; skipHistory?: boolean },
+  ) => void;
 
   beginStroke: (s: Stroke) => void;
   extendStroke: (id: string, p: Point) => void;
@@ -69,6 +87,90 @@ interface PaintState {
 }
 
 const initialTransform: Transform = { x: 0, y: 0, scale: 1 };
+const initialViewport: Viewport = { width: 0, height: 0 };
+
+function getViewportFrame(viewport: Viewport): ViewportFrame {
+  const isMobile = viewport.width < 768;
+  const leftInset = isMobile ? 16 : 32;
+  const rightInset = isMobile ? 16 : 32;
+  const topInset = isMobile ? 148 : 118;
+  const bottomInset = isMobile ? 170 : 132;
+
+  return {
+    left: leftInset,
+    top: topInset,
+    width: Math.max(1, viewport.width - leftInset - rightInset),
+    height: Math.max(1, viewport.height - topInset - bottomInset),
+  };
+}
+
+function clamp(value: number, min: number, max: number) {
+  return Math.min(max, Math.max(min, value));
+}
+
+function getBackgroundImage(images: CanvasImage[]) {
+  return images.find((image) => image.kind !== "sticker") ?? null;
+}
+
+function getMinScale(image: CanvasImage | null, viewport: Viewport) {
+  if (!image || viewport.width <= 0 || viewport.height <= 0) return 0.1;
+
+  const frame = getViewportFrame(viewport);
+  const contentPadding = viewport.width < 640 ? 12 : 20;
+  const availableWidth = Math.max(1, frame.width - contentPadding * 2);
+  const availableHeight = Math.max(1, frame.height - contentPadding * 2);
+
+  return clamp(
+    Math.min(availableWidth / image.width, availableHeight / image.height),
+    0.1,
+    3,
+  );
+}
+
+function clampTransform(transform: Transform, viewport: Viewport, image: CanvasImage | null) {
+  if (!image || viewport.width <= 0 || viewport.height <= 0) return transform;
+
+  const frame = getViewportFrame(viewport);
+  const scale = clamp(transform.scale, getMinScale(image, viewport), 8);
+  const scaledWidth = image.width * scale;
+  const scaledHeight = image.height * scale;
+
+  const x =
+    scaledWidth <= frame.width
+      ? frame.left + frame.width / 2 - (image.x + image.width / 2) * scale
+      : clamp(
+          transform.x,
+          frame.left + frame.width - (image.x + image.width) * scale,
+          frame.left - image.x * scale,
+        );
+
+  const y =
+    scaledHeight <= frame.height
+      ? frame.top + frame.height / 2 - (image.y + image.height / 2) * scale
+      : clamp(
+          transform.y,
+          frame.top + frame.height - (image.y + image.height) * scale,
+          frame.top - image.y * scale,
+        );
+
+  return { scale, x, y };
+}
+
+function getFocusedTransform(image: CanvasImage, viewport: Viewport) {
+  if (viewport.width <= 0 || viewport.height <= 0) return initialTransform;
+
+  const frame = getViewportFrame(viewport);
+  const scale = getMinScale(image, viewport);
+  return clampTransform(
+    {
+      scale,
+      x: frame.left + frame.width / 2 - (image.x + image.width / 2) * scale,
+      y: frame.top + frame.height / 2 - (image.y + image.height / 2) * scale,
+    },
+    viewport,
+    image,
+  );
+}
 
 function snap(state: PaintState): Snapshot {
   return {
@@ -108,6 +210,7 @@ export const usePaintStore = create<PaintState>((set, get) => ({
   recentColors: ["#f472b6", "#60a5fa", "#34d399", "#fbbf24", "#a78bfa", "#1f2937"],
 
   transform: initialTransform,
+  viewport: initialViewport,
 
   strokes: [],
   images: [],
@@ -125,7 +228,11 @@ export const usePaintStore = create<PaintState>((set, get) => ({
       currentProjectCreatedAt: project.createdAt,
       currentProjectUpdatedAt: project.updatedAt,
       isProjectLoaded: true,
-      transform: { ...project.transform },
+      transform: clampTransform(
+        { ...project.transform },
+        get().viewport,
+        getBackgroundImage(project.images),
+      ),
       strokes: project.strokes.map((stroke) => ({
         ...stroke,
         points: stroke.points.map((point) => ({ ...point })),
@@ -146,25 +253,74 @@ export const usePaintStore = create<PaintState>((set, get) => ({
     })),
   setBrushSize: (brushSize) => set({ brushSize }),
   setOpacity: (opacity) => set({ opacity }),
+  setViewport: (viewport) =>
+    set((s) => ({
+      viewport,
+      transform: clampTransform(s.transform, viewport, getBackgroundImage(s.images)),
+    })),
 
-  setTransform: (transform) => set({ transform }),
+  setTransform: (transform) =>
+    set((s) => ({
+      transform: clampTransform(transform, s.viewport, getBackgroundImage(s.images)),
+    })),
   panBy: (dx, dy) =>
     set((s) => ({
-      transform: { ...s.transform, x: s.transform.x + dx, y: s.transform.y + dy },
+      transform: clampTransform(
+        { ...s.transform, x: s.transform.x + dx, y: s.transform.y + dy },
+        s.viewport,
+        getBackgroundImage(s.images),
+      ),
     })),
   zoomAt: (factor, cx, cy) =>
     set((s) => {
-      const nextScale = Math.min(8, Math.max(0.1, s.transform.scale * factor));
+      const background = getBackgroundImage(s.images);
+      const nextScale = clamp(
+        s.transform.scale * factor,
+        getMinScale(background, s.viewport),
+        8,
+      );
       const k = nextScale / s.transform.scale;
       return {
-        transform: {
-          scale: nextScale,
-          x: cx - (cx - s.transform.x) * k,
-          y: cy - (cy - s.transform.y) * k,
-        },
+        transform: clampTransform(
+          {
+            scale: nextScale,
+            x: cx - (cx - s.transform.x) * k,
+            y: cy - (cy - s.transform.y) * k,
+          },
+          s.viewport,
+          background,
+        ),
       };
     }),
-  resetView: () => set({ transform: initialTransform }),
+  resetView: () =>
+    set((s) => {
+      const background = getBackgroundImage(s.images);
+      return {
+        transform: background ? getFocusedTransform(background, s.viewport) : initialTransform,
+      };
+    }),
+  setBackgroundImage: (image, options) =>
+    set((s) => {
+      const backgroundImage = { ...image, kind: image.kind ?? "image" };
+      const images = [
+        backgroundImage,
+        ...s.images.filter((existingImage) => existingImage.kind === "sticker"),
+      ];
+      const nextState = {
+        images,
+        selectedImageId: options?.selectImageId ?? null,
+        showWelcome: options?.keepWelcome ? s.showWelcome : false,
+        transform: getFocusedTransform(backgroundImage, s.viewport),
+      };
+
+      if (options?.skipHistory) return nextState;
+
+      return {
+        ...nextState,
+        history: [...s.history, snap(s)].slice(-80),
+        future: [],
+      };
+    }),
 
   beginStroke: (stroke) =>
     set((state) => ({
@@ -190,10 +346,21 @@ export const usePaintStore = create<PaintState>((set, get) => ({
       return { ...next, history: [...s.history, snap(s)].slice(-80), future: [] };
     }),
   updateImage: (id, patch) =>
-    set((s) => ({ images: s.images.map((i) => (i.id === id ? { ...i, ...patch } : i)) })),
+    set((s) => {
+      const images = s.images.map((image) => (image.id === id ? { ...image, ...patch } : image));
+      return {
+        images,
+        transform: clampTransform(s.transform, s.viewport, getBackgroundImage(images)),
+      };
+    }),
   removeImage: (id) =>
     set((s) => {
-      const next = { images: s.images.filter((i) => i.id !== id), selectedImageId: null };
+      const images = s.images.filter((image) => image.id !== id);
+      const next = {
+        images,
+        selectedImageId: null,
+        transform: clampTransform(s.transform, s.viewport, getBackgroundImage(images)),
+      };
       return { ...next, history: [...s.history, snap(s)].slice(-80), future: [] };
     }),
   selectImage: (selectedImageId) => set({ selectedImageId }),
@@ -208,6 +375,7 @@ export const usePaintStore = create<PaintState>((set, get) => ({
       return {
         strokes: prev.strokes,
         images: prev.images,
+        transform: clampTransform(s.transform, s.viewport, getBackgroundImage(prev.images)),
         history: s.history.slice(0, -1),
         future: [snap(s), ...s.future].slice(0, 80),
       };
@@ -219,6 +387,7 @@ export const usePaintStore = create<PaintState>((set, get) => ({
       return {
         strokes: next.strokes,
         images: next.images,
+        transform: clampTransform(s.transform, s.viewport, getBackgroundImage(next.images)),
         history: [...s.history, snap(s)].slice(-80),
         future: s.future.slice(1),
       };
@@ -226,7 +395,7 @@ export const usePaintStore = create<PaintState>((set, get) => ({
   clearAll: () =>
     set((s) => ({
       strokes: [],
-      images: [],
+      images: s.images.filter((image) => image.kind !== "sticker"),
       selectedImageId: null,
       history: [...s.history, snap(s)].slice(-80),
       future: [],

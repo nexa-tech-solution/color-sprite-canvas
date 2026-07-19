@@ -65,7 +65,7 @@ function ProjectEditor() {
 
   useEffect(() => {
     if (!ready) return;
-    document.title = `${projectName} — PastelPaint`;
+    document.title = `${projectName} | Tiny Color Club`;
   }, [projectName, ready]);
 
   if (!mounted || !ready) {

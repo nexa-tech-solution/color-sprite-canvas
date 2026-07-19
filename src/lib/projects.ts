@@ -41,7 +41,7 @@ export interface PaintProject {
   images: CanvasImage[];
 }
 
-export const DEFAULT_PROJECT_NAME = "Untitled sketch";
+export const DEFAULT_PROJECT_NAME = "My coloring page";
 export const PROJECTS_CHANGED_EVENT = "pastel-paint:projects-changed";
 
 const STORAGE_KEY = "pastel-paint.projects.v1";

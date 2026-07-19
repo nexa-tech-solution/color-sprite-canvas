@@ -22,7 +22,7 @@ import {
   Crosshair,
   BookOpen,
 } from "lucide-react";
-import { usePaintStore, type ToolId } from "@/stores/paintStore";
+import { usePaintStore, type CanvasImage, type ToolId } from "@/stores/paintStore";
 import { CanvasSurface } from "./CanvasSurface";
 import { imageToColoringPage } from "@/lib/coloringPage";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -64,6 +64,9 @@ export function PaintApp() {
   const isMobile = useIsMobile();
   const [stickersOpen, setStickersOpen] = useState(false);
   const [pagesOpen, setPagesOpen] = useState(false);
+  const isProjectLoaded = usePaintStore((s) => s.isProjectLoaded);
+  const strokesCount = usePaintStore((s) => s.strokes.length);
+  const hasBackground = usePaintStore((s) => s.images.some((image) => image.kind !== "sticker"));
 
   const toggleStickers = () => {
     setPagesOpen(false);
@@ -74,6 +77,29 @@ export function PaintApp() {
     setStickersOpen(false);
     setPagesOpen((open) => !open);
   };
+
+  useEffect(() => {
+    if (!isProjectLoaded || hasBackground || strokesCount > 0 || COLORING_PAGES.length === 0) return;
+
+    let cancelled = false;
+
+    buildColoringBookBackground(COLORING_PAGES[0])
+      .then((background) => {
+        if (cancelled) return;
+        usePaintStore.getState().setBackgroundImage(background, {
+          keepWelcome: true,
+          skipHistory: true,
+        });
+        usePaintStore.getState().setTool("brush");
+      })
+      .catch(() => {
+        // Ignore background preload failures so the editor still opens.
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [hasBackground, isProjectLoaded, strokesCount]);
 
   return (
     <div className="fixed inset-0 bg-paint-canvas overflow-hidden text-slate-700">
@@ -126,10 +152,11 @@ function TopBar({
   const clearAll = usePaintStore((s) => s.clearAll);
   const canUndo = usePaintStore((s) => s.history.length > 0);
   const canRedo = usePaintStore((s) => s.future.length > 0);
-  const hasContent = usePaintStore((s) => s.strokes.length > 0 || s.images.length > 0);
+  const hasContent = usePaintStore(
+    (s) => s.strokes.length > 0 || s.images.some((image) => image.kind === "sticker"),
+  );
   const fileRef = useRef<HTMLInputElement>(null);
-  const addImage = usePaintStore((s) => s.addImage);
-  const transform = usePaintStore((s) => s.transform);
+  const setBackgroundImage = usePaintStore((s) => s.setBackgroundImage);
   const [draftName, setDraftName] = useState(projectName);
 
   useEffect(() => {
@@ -143,28 +170,10 @@ function TopBar({
 
   const handleFile = async (file: File) => {
     const src = await fileToDataUrl(file);
-    const img = await loadImg(src);
-    const maxW = 600;
-    const scale = Math.min(1, maxW / img.width);
-    const w = img.width * scale;
-    const h = img.height * scale;
-    // center in current viewport
-    const cx = (window.innerWidth / 2 - transform.x) / transform.scale;
-    const cy = (window.innerHeight / 2 - transform.y) / transform.scale;
-    addImage({
-      id: crypto.randomUUID(),
-      src,
-      originalSrc: src,
-      kind: "image",
-      isOutline: false,
-      x: cx - w / 2,
-      y: cy - h / 2,
-      width: w,
-      height: h,
-      opacity: 1,
-    });
+    const background = await buildImportedBackground(src);
+    setBackgroundImage(background, { selectImageId: background.id });
     usePaintStore.getState().setTool("select");
-    toast.success("Image added — tap Make Coloring Page in the panel");
+    toast.success("Picture added as your coloring page background");
   };
 
   const onExport = () => {
@@ -393,31 +402,14 @@ function ToolDock({
   const tool = usePaintStore((s) => s.tool);
   const setTool = usePaintStore((s) => s.setTool);
   const fileRef = useRef<HTMLInputElement>(null);
-  const addImage = usePaintStore((s) => s.addImage);
-  const transform = usePaintStore((s) => s.transform);
+  const setBackgroundImage = usePaintStore((s) => s.setBackgroundImage);
 
   const importImage = async (file: File) => {
     const src = await fileToDataUrl(file);
-    const img = await loadImg(src);
-    const maxW = 600;
-    const scale = Math.min(1, maxW / img.width);
-    const w = img.width * scale;
-    const h = img.height * scale;
-    const cx = (window.innerWidth / 2 - transform.x) / transform.scale;
-    const cy = (window.innerHeight / 2 - transform.y) / transform.scale;
-    addImage({
-      id: crypto.randomUUID(),
-      src,
-      originalSrc: src,
-      kind: "image",
-      isOutline: false,
-      x: cx - w / 2,
-      y: cy - h / 2,
-      width: w,
-      height: h,
-      opacity: 1,
-    });
+    const background = await buildImportedBackground(src);
+    setBackgroundImage(background, { selectImageId: background.id });
     setTool("select");
+    toast.success("Picture added as your coloring page background");
   };
 
   if (isMobile) {
@@ -664,38 +656,19 @@ function ColoringPageShelf({
   open: boolean;
   onClose: () => void;
 }) {
-  const addImage = usePaintStore((s) => s.addImage);
   const setTool = usePaintStore((s) => s.setTool);
-  const transform = usePaintStore((s) => s.transform);
+  const setBackgroundImage = usePaintStore((s) => s.setBackgroundImage);
+  const activeBackgroundSrc = usePaintStore(
+    (s) => s.images.find((image) => image.kind !== "sticker")?.originalSrc ?? null,
+  );
   const categories = Array.from(new Set(COLORING_PAGES.map((page) => page.category)));
 
   const addColoringPage = async (page: ColoringPage) => {
-    const src = coloringPageToSrc(page);
-    const img = await loadImg(src);
-    const pageWidth = page.width ?? img.width;
-    const pageHeight = page.height ?? img.height;
-    const maxPageWidth = isMobile ? Math.min(window.innerWidth - 56, 330) : 520;
-    const scale = Math.min(1, maxPageWidth / pageWidth);
-    const width = Math.round(pageWidth * scale);
-    const height = Math.round(pageHeight * scale);
-    const centerX = (window.innerWidth / 2 - transform.x) / transform.scale;
-    const centerY = (window.innerHeight / 2 - transform.y) / transform.scale;
-
-    addImage({
-      id: crypto.randomUUID(),
-      src,
-      originalSrc: src,
-      kind: "coloring-page",
-      isOutline: true,
-      x: centerX - width / 2,
-      y: centerY - height / 2,
-      width,
-      height,
-      opacity: 1,
-    });
+    const background = await buildColoringBookBackground(page);
+    setBackgroundImage(background);
     setTool("brush");
     onClose();
-    toast.success(`${page.name} added — pick a color and paint`);
+    toast.success(`${page.name} is ready to color`);
   };
 
   return (
@@ -738,28 +711,42 @@ function ColoringPageShelf({
                     {category}
                   </h3>
                   <div className="grid grid-cols-2 gap-3">
-                    {COLORING_PAGES.filter((page) => page.category === category).map((page) => (
-                      <button
-                        key={page.id}
-                        type="button"
-                        onClick={() => addColoringPage(page)}
-                        title={page.name}
-                        aria-label={`Add ${page.name} coloring page`}
-                        className="group cursor-pointer overflow-hidden rounded-[1.35rem] border border-cyan-100/80 bg-white p-2 text-left shadow-[0_12px_24px_-18px_rgba(15,23,42,0.75)] transition-all duration-200 hover:-translate-y-0.5 hover:border-cyan-200 hover:shadow-[0_18px_30px_-22px_rgba(8,145,178,0.75)] active:scale-95"
-                      >
-                        <span className="relative flex aspect-[4/5] items-center justify-center overflow-hidden rounded-2xl bg-[linear-gradient(145deg,_#ffffff_0%,_#f8fdff_58%,_#eefcff_100%)] px-3 py-2">
-                          <img
-                            src={coloringPageToSrc(page)}
-                            alt=""
-                            className="h-full w-full object-contain opacity-95 transition-transform duration-200 group-hover:scale-[1.03]"
-                            draggable={false}
-                          />
-                        </span>
-                        <span className="mt-2 block truncate px-1 text-xs font-semibold text-slate-700">
-                          {page.name}
-                        </span>
-                      </button>
-                    ))}
+                    {COLORING_PAGES.filter((page) => page.category === category).map((page) => {
+                      const pageSrc = coloringPageToSrc(page);
+                      const active = activeBackgroundSrc === pageSrc;
+
+                      return (
+                        <button
+                          key={page.id}
+                          type="button"
+                          onClick={() => addColoringPage(page)}
+                          title={page.name}
+                          aria-label={`Add ${page.name} coloring page`}
+                          className={`group cursor-pointer overflow-hidden rounded-[1.35rem] border bg-white p-2 text-left shadow-[0_12px_24px_-18px_rgba(15,23,42,0.75)] transition-all duration-200 hover:-translate-y-0.5 active:scale-95 ${
+                            active
+                              ? "border-cyan-300 ring-2 ring-cyan-200/70 shadow-[0_18px_30px_-22px_rgba(8,145,178,0.75)]"
+                              : "border-cyan-100/80 hover:border-cyan-200 hover:shadow-[0_18px_30px_-22px_rgba(8,145,178,0.75)]"
+                          }`}
+                        >
+                          <span className="relative flex aspect-[4/5] items-center justify-center overflow-hidden rounded-2xl bg-[linear-gradient(145deg,_#ffffff_0%,_#f8fdff_58%,_#eefcff_100%)] px-3 py-2">
+                            <img
+                              src={pageSrc}
+                              alt=""
+                              className="h-full w-full object-contain opacity-95 transition-transform duration-200 group-hover:scale-[1.03]"
+                              draggable={false}
+                            />
+                          </span>
+                          <span className="mt-2 block truncate px-1 text-xs font-semibold text-slate-700">
+                            {page.name}
+                          </span>
+                          {active && (
+                            <span className="px-1 text-[11px] font-semibold text-cyan-600">
+                              Current page
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
                   </div>
                 </section>
               ))}
@@ -911,6 +898,7 @@ function PropertiesPanel({ isMobile }: { isMobile: boolean }) {
   const [processing, setProcessing] = useState(false);
   const isSticker = image?.kind === "sticker";
   const isColoringPage = image?.kind === "coloring-page";
+  const isBackgroundImage = Boolean(image && image.kind !== "sticker");
 
   const makeColoringPage = async () => {
     if (!image) return;
@@ -997,7 +985,14 @@ function PropertiesPanel({ isMobile }: { isMobile: boolean }) {
 
             {isColoringPage && (
               <div className="mb-4 rounded-2xl bg-cyan-50 px-4 py-3 text-xs font-medium leading-relaxed text-cyan-800 sm:text-sm">
-                Color with Brush, Pencil, or Marker. The black lines stay above your colors.
+                This page is locked in place so kids only pan inside the picture while they color.
+              </div>
+            )}
+
+            {!isSticker && !isColoringPage && image && (
+              <div className="mb-4 rounded-2xl bg-rose-50 px-4 py-3 text-xs font-medium leading-relaxed text-rose-700 sm:text-sm">
+                This picture is your page background. Turn it into line art to make a custom
+                coloring sheet.
               </div>
             )}
 
@@ -1027,18 +1022,27 @@ function PropertiesPanel({ isMobile }: { isMobile: boolean }) {
               isMobile ? "rounded-[1.5rem] p-2" : "rounded-[2rem] p-3"
             }`}
           >
-            <button
-              onClick={duplicate}
-              className="flex-1 flex items-center justify-center gap-2 py-2.5 text-sm text-slate-600 hover:bg-slate-50 rounded-2xl"
-            >
-              <Copy className="size-4" /> Duplicate
-            </button>
-            <button
-              onClick={() => removeImage(image.id)}
-              className="flex-1 flex items-center justify-center gap-2 py-2.5 text-sm text-rose-500 hover:bg-rose-50 rounded-2xl"
-            >
-              <Trash2 className="size-4" /> Delete
-            </button>
+            {isBackgroundImage ? (
+              <div className="flex-1 rounded-2xl bg-slate-50 px-4 py-3 text-center text-xs font-medium leading-relaxed text-slate-500">
+                Pick another page from Coloring book or import a new picture to change the
+                background.
+              </div>
+            ) : (
+              <>
+                <button
+                  onClick={duplicate}
+                  className="flex-1 flex items-center justify-center gap-2 py-2.5 text-sm text-slate-600 hover:bg-slate-50 rounded-2xl"
+                >
+                  <Copy className="size-4" /> Duplicate
+                </button>
+                <button
+                  onClick={() => removeImage(image.id)}
+                  className="flex-1 flex items-center justify-center gap-2 py-2.5 text-sm text-rose-500 hover:bg-rose-50 rounded-2xl"
+                >
+                  <Trash2 className="size-4" /> Delete
+                </button>
+              </>
+            )}
           </div>
         </motion.aside>
       )}
@@ -1169,13 +1173,13 @@ function WelcomeCard({ isMobile }: { isMobile: boolean }) {
                 isMobile ? "text-xl leading-tight" : "text-2xl"
               }`}
             >
-              Start creating something cute
+              Pick a page and start coloring
             </h1>
             <p
               className={`mb-6 text-slate-500 ${isMobile ? "text-xs leading-relaxed" : "text-sm"}`}
             >
-              Draw with one finger. Two fingers to pan, pinch to zoom. Or import a photo to turn it
-              into a coloring page.
+              We already loaded a coloring page for you. Pan stays inside the picture, and you can
+              import a photo to turn it into your own sheet.
             </p>
             <button
               onClick={dismiss}
@@ -1183,7 +1187,7 @@ function WelcomeCard({ isMobile }: { isMobile: boolean }) {
                 isMobile ? "text-xs" : "text-sm"
               }`}
             >
-              Start Drawing
+              Start Coloring
             </button>
           </div>
         </motion.div>
@@ -1215,33 +1219,43 @@ async function exportCanvas() {
   const st = usePaintStore.getState();
   const { strokes, images } = st;
   if (!strokes.length && !images.length) {
-    toast.error("Nothing to export yet — draw something first!");
+    toast.error("Nothing to export yet - draw something first!");
     return;
   }
-  // compute bounds
-  let minX = Infinity,
-    minY = Infinity,
-    maxX = -Infinity,
-    maxY = -Infinity;
-  for (const im of images) {
-    minX = Math.min(minX, im.x);
-    minY = Math.min(minY, im.y);
-    maxX = Math.max(maxX, im.x + im.width);
-    maxY = Math.max(maxY, im.y + im.height);
-  }
-  for (const s of strokes) {
-    for (const p of s.points) {
-      minX = Math.min(minX, p.x - s.size);
-      minY = Math.min(minY, p.y - s.size);
-      maxX = Math.max(maxX, p.x + s.size);
-      maxY = Math.max(maxY, p.y + s.size);
+  const background = getBackgroundImage(images);
+
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+
+  if (background) {
+    minX = background.x;
+    minY = background.y;
+    maxX = background.x + background.width;
+    maxY = background.y + background.height;
+  } else {
+    for (const im of images) {
+      minX = Math.min(minX, im.x);
+      minY = Math.min(minY, im.y);
+      maxX = Math.max(maxX, im.x + im.width);
+      maxY = Math.max(maxY, im.y + im.height);
     }
+    for (const stroke of strokes) {
+      for (const point of stroke.points) {
+        minX = Math.min(minX, point.x - stroke.size);
+        minY = Math.min(minY, point.y - stroke.size);
+        maxX = Math.max(maxX, point.x + stroke.size);
+        maxY = Math.max(maxY, point.y + stroke.size);
+      }
+    }
+    const pad = 40;
+    minX -= pad;
+    minY -= pad;
+    maxX += pad;
+    maxY += pad;
   }
-  const pad = 40;
-  minX -= pad;
-  minY -= pad;
-  maxX += pad;
-  maxY += pad;
+
   const w = Math.max(1, maxX - minX);
   const h = Math.max(1, maxY - minY);
   const c = document.createElement("canvas");
@@ -1258,6 +1272,13 @@ async function exportCanvas() {
   const outs = images.filter((i) => i.isOutline && i.kind !== "sticker");
   const stickers = images.filter((i) => i.kind === "sticker");
   await Promise.all(images.map((im) => waitLoad(im.src)));
+
+  if (background) {
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(background.x, background.y, background.width, background.height);
+    ctx.clip();
+  }
 
   for (const im of bgs) {
     const img = await waitLoad(im.src);
@@ -1294,6 +1315,11 @@ async function exportCanvas() {
     ctx.globalCompositeOperation = "multiply";
     ctx.drawImage(img, im.x, im.y, im.width, im.height);
   }
+
+  if (background) {
+    ctx.restore();
+  }
+
   ctx.globalCompositeOperation = "source-over";
   ctx.globalAlpha = 1;
   for (const im of stickers) {
@@ -1305,7 +1331,7 @@ async function exportCanvas() {
   const url = c.toDataURL("image/png");
   const a = document.createElement("a");
   a.href = url;
-  a.download = `pastelpaint-${Date.now()}.png`;
+  a.download = `tiny-color-club-${Date.now()}.png`;
   a.click();
   toast.success("Exported!");
 }
@@ -1318,4 +1344,53 @@ function waitLoad(src: string): Promise<HTMLImageElement> {
     i.onerror = rej;
     i.src = src;
   });
+}
+
+function scaleIntoPage(width: number, height: number, maxWidth: number) {
+  const scale = Math.min(1, maxWidth / width);
+  return {
+    width: Math.round(width * scale),
+    height: Math.round(height * scale),
+  };
+}
+
+async function buildImportedBackground(src: string) {
+  const img = await loadImg(src);
+  const size = scaleIntoPage(img.width, img.height, 760);
+
+  return {
+    id: crypto.randomUUID(),
+    src,
+    originalSrc: src,
+    kind: "image" as const,
+    isOutline: false,
+    x: 0,
+    y: 0,
+    width: size.width,
+    height: size.height,
+    opacity: 1,
+  };
+}
+
+async function buildColoringBookBackground(page: ColoringPage) {
+  const src = coloringPageToSrc(page);
+  const img = await loadImg(src);
+  const size = scaleIntoPage(page.width ?? img.width, page.height ?? img.height, 760);
+
+  return {
+    id: crypto.randomUUID(),
+    src,
+    originalSrc: src,
+    kind: "coloring-page" as const,
+    isOutline: true,
+    x: 0,
+    y: 0,
+    width: size.width,
+    height: size.height,
+    opacity: 1,
+  };
+}
+
+function getBackgroundImage(images: CanvasImage[]) {
+  return images.find((image) => image.kind !== "sticker") ?? null;
 }
