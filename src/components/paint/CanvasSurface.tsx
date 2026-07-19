@@ -19,7 +19,14 @@ export function CanvasSurface() {
   const rafRef = useRef<number | null>(null);
   const drawingRef = useRef<{ id: string } | null>(null);
   const panRef = useRef<{ x: number; y: number } | null>(null);
-  const dragImgRef = useRef<{ id: string; startX: number; startY: number; imgX: number; imgY: number } | null>(null);
+  const dragImgRef = useRef<{
+    id: string;
+    startX: number;
+    startY: number;
+    imgX: number;
+    imgY: number;
+    historyCaptured: boolean;
+  } | null>(null);
   const spaceRef = useRef(false);
   const [size, setSize] = useState({ w: 0, h: 0 });
 
@@ -223,7 +230,14 @@ export function CanvasSurface() {
       const hit = hitImage(wp);
       if (hit) {
         st.selectImage(hit.id);
-        dragImgRef.current = { id: hit.id, startX: e.clientX, startY: e.clientY, imgX: hit.x, imgY: hit.y };
+        dragImgRef.current = {
+          id: hit.id,
+          startX: e.clientX,
+          startY: e.clientY,
+          imgX: hit.x,
+          imgY: hit.y,
+          historyCaptured: false,
+        };
       } else {
         st.selectImage(null);
       }
@@ -271,6 +285,10 @@ export function CanvasSurface() {
       const t = st.transform;
       const dx = (e.clientX - dragImgRef.current.startX) / t.scale;
       const dy = (e.clientY - dragImgRef.current.startY) / t.scale;
+      if (!dragImgRef.current.historyCaptured && (dx !== 0 || dy !== 0)) {
+        st.pushHistory();
+        dragImgRef.current.historyCaptured = true;
+      }
       st.updateImage(dragImgRef.current.id, {
         x: dragImgRef.current.imgX + dx,
         y: dragImgRef.current.imgY + dy,
@@ -288,10 +306,7 @@ export function CanvasSurface() {
       usePaintStore.getState().endStroke();
       drawingRef.current = null;
     }
-    if (dragImgRef.current) {
-      usePaintStore.getState().pushHistory();
-      dragImgRef.current = null;
-    }
+    dragImgRef.current = null;
     panRef.current = null;
   };
 

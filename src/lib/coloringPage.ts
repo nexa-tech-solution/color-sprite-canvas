@@ -35,11 +35,19 @@ export async function imageToColoringPage(
     for (let x = 1; x < w - 1; x++) {
       const i = y * w + x;
       const gx =
-        -blurred[i - w - 1] - 2 * blurred[i - 1] - blurred[i + w - 1] +
-        blurred[i - w + 1] + 2 * blurred[i + 1] + blurred[i + w + 1];
+        -blurred[i - w - 1] -
+        2 * blurred[i - 1] -
+        blurred[i + w - 1] +
+        blurred[i - w + 1] +
+        2 * blurred[i + 1] +
+        blurred[i + w + 1];
       const gy =
-        -blurred[i - w - 1] - 2 * blurred[i - w] - blurred[i - w + 1] +
-        blurred[i + w - 1] + 2 * blurred[i + w] + blurred[i + w + 1];
+        -blurred[i - w - 1] -
+        2 * blurred[i - w] -
+        blurred[i - w + 1] +
+        blurred[i + w - 1] +
+        2 * blurred[i + w] +
+        blurred[i + w + 1];
       const m = Math.hypot(gx, gy);
       mag[i] = m;
       if (m > maxMag) maxMag = m;
@@ -73,10 +81,14 @@ function boxBlur(src: Float32Array, w: number, h: number, radius: number): Float
   // horizontal
   for (let y = 0; y < h; y++) {
     for (let x = 0; x < w; x++) {
-      let sum = 0, count = 0;
+      let sum = 0,
+        count = 0;
       for (let k = -radius; k <= radius; k++) {
         const xx = x + k;
-        if (xx >= 0 && xx < w) { sum += src[y * w + xx]; count++; }
+        if (xx >= 0 && xx < w) {
+          sum += src[y * w + xx];
+          count++;
+        }
       }
       tmp[y * w + x] = sum / count;
     }
@@ -84,10 +96,14 @@ function boxBlur(src: Float32Array, w: number, h: number, radius: number): Float
   // vertical
   for (let y = 0; y < h; y++) {
     for (let x = 0; x < w; x++) {
-      let sum = 0, count = 0;
+      let sum = 0,
+        count = 0;
       for (let k = -radius; k <= radius; k++) {
         const yy = y + k;
-        if (yy >= 0 && yy < h) { sum += tmp[yy * w + x]; count++; }
+        if (yy >= 0 && yy < h) {
+          sum += tmp[yy * w + x];
+          count++;
+        }
       }
       dst[y * w + x] = sum / count;
     }

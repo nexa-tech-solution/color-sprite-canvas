@@ -1,13 +1,6 @@
 import { create } from "zustand";
 
-export type ToolId =
-  | "select"
-  | "pan"
-  | "pencil"
-  | "brush"
-  | "marker"
-  | "eraser"
-  | "image";
+export type ToolId = "select" | "pan" | "pencil" | "brush" | "marker" | "eraser" | "image";
 
 export interface Point {
   x: number;
@@ -25,8 +18,8 @@ export interface Stroke {
 
 export interface CanvasImage {
   id: string;
-  src: string;          // current displayed src (may be coloring outline)
-  originalSrc: string;  // preserved original
+  src: string; // current displayed src (may be coloring outline)
+  originalSrc: string; // preserved original
   isOutline: boolean;
   x: number;
   y: number;
@@ -64,7 +57,6 @@ interface PaintState {
   history: Snapshot[];
   future: Snapshot[];
 
-  // actions
   setTool: (t: ToolId) => void;
   setColor: (c: string) => void;
   setBrushSize: (n: number) => void;
@@ -118,7 +110,8 @@ export const usePaintStore = create<PaintState>((set, get) => ({
   history: [],
   future: [],
 
-  setTool: (tool) => set({ tool, selectedImageId: tool === "select" ? get().selectedImageId : null }),
+  setTool: (tool) =>
+    set({ tool, selectedImageId: tool === "select" ? get().selectedImageId : null }),
   setColor: (color) =>
     set((s) => ({
       color,
@@ -129,7 +122,9 @@ export const usePaintStore = create<PaintState>((set, get) => ({
 
   setTransform: (transform) => set({ transform }),
   panBy: (dx, dy) =>
-    set((s) => ({ transform: { ...s.transform, x: s.transform.x + dx, y: s.transform.y + dy } })),
+    set((s) => ({
+      transform: { ...s.transform, x: s.transform.x + dx, y: s.transform.y + dy },
+    })),
   zoomAt: (factor, cx, cy) =>
     set((s) => {
       const nextScale = Math.min(8, Math.max(0.1, s.transform.scale * factor));
@@ -144,20 +139,27 @@ export const usePaintStore = create<PaintState>((set, get) => ({
     }),
   resetView: () => set({ transform: initialTransform }),
 
-  beginStroke: (s) => set((st) => ({ strokes: [...st.strokes, s], showWelcome: false })),
+  beginStroke: (stroke) =>
+    set((state) => ({
+      strokes: [...state.strokes, stroke],
+      showWelcome: false,
+      history: [...state.history, snap(state)].slice(-80),
+      future: [],
+    })),
   extendStroke: (id, p) =>
     set((st) => ({
       strokes: st.strokes.map((s) => (s.id === id ? { ...s, points: [...s.points, p] } : s)),
     })),
-  endStroke: () => {
-    // commit history at stroke end
-    const s = get();
-    set({ history: [...s.history, snap(s)].slice(-80), future: [] });
-  },
+  endStroke: () => {},
 
   addImage: (img) =>
     set((s) => {
-      const next = { ...s, images: [...s.images, img], selectedImageId: img.id, showWelcome: false };
+      const next = {
+        ...s,
+        images: [...s.images, img],
+        selectedImageId: img.id,
+        showWelcome: false,
+      };
       return { ...next, history: [...s.history, snap(s)].slice(-80), future: [] };
     }),
   updateImage: (id, patch) =>
