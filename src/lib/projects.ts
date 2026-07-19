@@ -16,7 +16,7 @@ export interface CanvasImage {
   id: string;
   src: string;
   originalSrc: string;
-  kind?: "image" | "sticker";
+  kind?: "image" | "sticker" | "coloring-page";
   isOutline: boolean;
   x: number;
   y: number;

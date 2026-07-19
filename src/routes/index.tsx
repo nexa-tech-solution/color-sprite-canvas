@@ -1,5 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { ImageIcon, PenLine, Plus, Sparkles, Trash2 } from "lucide-react";
+import { BookOpen, ImageIcon, PenLine, Plus, Sparkles, Trash2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import {
   AlertDialog,
@@ -135,7 +135,10 @@ function EmptyLibrary({ onCreateProject }: { onCreateProject: () => void }) {
 }
 
 function ProjectCard({ project }: { project: PaintProject }) {
-  const importedImageCount = project.images.filter((image) => image.kind !== "sticker").length;
+  const importedImageCount = project.images.filter(
+    (image) => image.kind !== "sticker" && image.kind !== "coloring-page",
+  ).length;
+  const coloringPageCount = project.images.filter((image) => image.kind === "coloring-page").length;
   const stickerCount = project.images.filter((image) => image.kind === "sticker").length;
 
   return (
@@ -166,6 +169,10 @@ function ProjectCard({ project }: { project: PaintProject }) {
           <div className="flex items-center gap-2 text-xs">
             <ImageIcon className="size-4 shrink-0" />
             <span>{formatCount(importedImageCount, "imported image")}</span>
+          </div>
+          <div className="mt-2 flex items-center gap-2 text-xs">
+            <BookOpen className="size-4 shrink-0" />
+            <span>{formatCount(coloringPageCount, "coloring page")}</span>
           </div>
           <div className="mt-2 flex items-center gap-2 text-xs">
             <Sparkles className="size-4 shrink-0" />

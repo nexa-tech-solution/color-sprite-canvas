@@ -20,12 +20,14 @@ import {
   Copy,
   RotateCcw,
   Crosshair,
+  BookOpen,
 } from "lucide-react";
 import { usePaintStore, type ToolId } from "@/stores/paintStore";
 import { CanvasSurface } from "./CanvasSurface";
 import { imageToColoringPage } from "@/lib/coloringPage";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { DEFAULT_PROJECT_NAME } from "@/lib/projects";
+import { COLORING_PAGES, coloringPageToSrc, type ColoringPage } from "@/lib/coloringPages";
 import { STICKERS, type Sticker, stickerToDataUrl } from "@/lib/stickers";
 import { toast } from "sonner";
 
@@ -61,6 +63,17 @@ function stopControlEvent(event: React.SyntheticEvent) {
 export function PaintApp() {
   const isMobile = useIsMobile();
   const [stickersOpen, setStickersOpen] = useState(false);
+  const [pagesOpen, setPagesOpen] = useState(false);
+
+  const toggleStickers = () => {
+    setPagesOpen(false);
+    setStickersOpen((open) => !open);
+  };
+
+  const togglePages = () => {
+    setStickersOpen(false);
+    setPagesOpen((open) => !open);
+  };
 
   return (
     <div className="fixed inset-0 bg-paint-canvas overflow-hidden text-slate-700">
@@ -69,13 +82,18 @@ export function PaintApp() {
       <TopBar
         isMobile={isMobile}
         stickersOpen={stickersOpen}
-        onToggleStickers={() => setStickersOpen((open) => !open)}
+        pagesOpen={pagesOpen}
+        onToggleStickers={toggleStickers}
+        onTogglePages={togglePages}
       />
       <ToolDock
         isMobile={isMobile}
         stickersOpen={stickersOpen}
-        onToggleStickers={() => setStickersOpen((open) => !open)}
+        pagesOpen={pagesOpen}
+        onToggleStickers={toggleStickers}
+        onTogglePages={togglePages}
       />
+      <ColoringPageShelf isMobile={isMobile} open={pagesOpen} onClose={() => setPagesOpen(false)} />
       <StickerShelf
         isMobile={isMobile}
         open={stickersOpen}
@@ -91,11 +109,15 @@ export function PaintApp() {
 function TopBar({
   isMobile,
   stickersOpen,
+  pagesOpen,
   onToggleStickers,
+  onTogglePages,
 }: {
   isMobile: boolean;
   stickersOpen: boolean;
+  pagesOpen: boolean;
   onToggleStickers: () => void;
+  onTogglePages: () => void;
 }) {
   const projectName = usePaintStore((s) => s.currentProjectName);
   const setProjectName = usePaintStore((s) => s.setProjectName);
@@ -237,6 +259,13 @@ function TopBar({
                 <ImagePlus className="size-4" />
               </IconBtn>
               <IconBtn
+                label="Coloring pages"
+                onClick={onTogglePages}
+                className={`size-9 rounded-full ${pagesOpen ? "bg-brand-mint text-cyan-700" : ""}`}
+              >
+                <BookOpen className="size-4" />
+              </IconBtn>
+              <IconBtn
                 label="Stickers"
                 onClick={onToggleStickers}
                 className={`size-9 rounded-full ${
@@ -285,6 +314,16 @@ function TopBar({
                 }`}
               >
                 <Sparkles className="size-4" /> Stickers
+              </button>
+              <button
+                onClick={onTogglePages}
+                className={`flex items-center gap-2 rounded-2xl border px-4 py-2.5 text-sm font-medium shadow-soft transition-colors ${
+                  pagesOpen
+                    ? "border-cyan-200 bg-brand-mint text-cyan-700"
+                    : "border-slate-100 bg-paint-panel/80 text-slate-600 hover:bg-white"
+                }`}
+              >
+                <BookOpen className="size-4" /> Pages
               </button>
               <button
                 onClick={onExport}
@@ -341,11 +380,15 @@ function IconBtn({
 function ToolDock({
   isMobile,
   stickersOpen,
+  pagesOpen,
   onToggleStickers,
+  onTogglePages,
 }: {
   isMobile: boolean;
   stickersOpen: boolean;
+  pagesOpen: boolean;
   onToggleStickers: () => void;
+  onTogglePages: () => void;
 }) {
   const tool = usePaintStore((s) => s.tool);
   const setTool = usePaintStore((s) => s.setTool);
@@ -416,6 +459,18 @@ function ToolDock({
           >
             <Sparkles className="size-[18px]" />
           </button>
+          <button
+            onClick={onTogglePages}
+            title="Coloring pages"
+            aria-label="Coloring pages"
+            className={`flex size-10 shrink-0 items-center justify-center rounded-full transition-all active:scale-90 ${
+              pagesOpen
+                ? "bg-brand-mint text-cyan-700 shadow-inner"
+                : "text-slate-400 hover:bg-slate-50 hover:text-slate-600"
+            }`}
+          >
+            <BookOpen className="size-[18px]" />
+          </button>
         </motion.div>
       </aside>
     );
@@ -458,6 +513,18 @@ function ToolDock({
         }`}
       >
         <Sparkles className="size-5" />
+      </button>
+      <button
+        onClick={onTogglePages}
+        title="Coloring pages"
+        aria-label="Coloring pages"
+        className={`flex size-11 items-center justify-center rounded-2xl transition-all active:scale-90 ${
+          pagesOpen
+            ? "bg-brand-mint text-cyan-700 shadow-inner"
+            : "text-slate-400 hover:bg-slate-50 hover:text-slate-600"
+        }`}
+      >
+        <BookOpen className="size-5" />
       </button>
       <button
         onClick={() => fileRef.current?.click()}
@@ -528,14 +595,16 @@ function StickerShelf({
           animate={isMobile ? { y: 0, opacity: 1 } : { x: 0, opacity: 1 }}
           exit={isMobile ? { y: 40, opacity: 0 } : { x: -24, opacity: 0 }}
           transition={{ type: "spring", stiffness: 260, damping: 26 }}
-          className={`pointer-events-none absolute z-50 ${
+          onWheel={stopControlEvent}
+          onTouchMove={stopControlEvent}
+          className={`pointer-events-auto absolute z-50 ${
             isMobile
-              ? "inset-x-3 bottom-20 max-h-[48vh]"
-              : "left-[4.75rem] top-1/2 hidden w-[19rem] -translate-y-1/2 md:block"
+              ? "inset-x-3 bottom-20 h-[48dvh]"
+              : "bottom-6 left-[4.75rem] top-24 hidden w-[19rem] md:block"
           }`}
         >
-          <div className="paint-scrollbar pointer-events-auto max-h-full overflow-y-auto rounded-[1.75rem] border border-slate-100 bg-paint-panel/95 p-4 shadow-float backdrop-blur-xl">
-            <div className="mb-3 flex items-center justify-between gap-3">
+          <div className="flex h-full flex-col overflow-hidden rounded-[1.75rem] border border-slate-100 bg-paint-panel/95 shadow-float backdrop-blur-xl">
+            <div className="flex shrink-0 items-center justify-between gap-3 p-4 pb-3">
               <div>
                 <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-amber-500">
                   Sticker book
@@ -551,7 +620,7 @@ function StickerShelf({
               </button>
             </div>
 
-            <div className="space-y-4">
+            <div className="paint-scrollbar min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain px-4 pb-4 [touch-action:pan-y]">
               {categories.map((category) => (
                 <section key={category}>
                   <h3 className="mb-2 text-[11px] font-bold uppercase tracking-[0.16em] text-slate-400">
@@ -573,6 +642,122 @@ function StickerShelf({
                           className="max-h-full max-w-full object-contain"
                           draggable={false}
                         />
+                      </button>
+                    ))}
+                  </div>
+                </section>
+              ))}
+            </div>
+          </div>
+        </motion.aside>
+      )}
+    </AnimatePresence>
+  );
+}
+
+function ColoringPageShelf({
+  isMobile,
+  open,
+  onClose,
+}: {
+  isMobile: boolean;
+  open: boolean;
+  onClose: () => void;
+}) {
+  const addImage = usePaintStore((s) => s.addImage);
+  const setTool = usePaintStore((s) => s.setTool);
+  const transform = usePaintStore((s) => s.transform);
+  const categories = Array.from(new Set(COLORING_PAGES.map((page) => page.category)));
+
+  const addColoringPage = async (page: ColoringPage) => {
+    const src = coloringPageToSrc(page);
+    const img = await loadImg(src);
+    const pageWidth = page.width ?? img.width;
+    const pageHeight = page.height ?? img.height;
+    const maxPageWidth = isMobile ? Math.min(window.innerWidth - 56, 330) : 520;
+    const scale = Math.min(1, maxPageWidth / pageWidth);
+    const width = Math.round(pageWidth * scale);
+    const height = Math.round(pageHeight * scale);
+    const centerX = (window.innerWidth / 2 - transform.x) / transform.scale;
+    const centerY = (window.innerHeight / 2 - transform.y) / transform.scale;
+
+    addImage({
+      id: crypto.randomUUID(),
+      src,
+      originalSrc: src,
+      kind: "coloring-page",
+      isOutline: true,
+      x: centerX - width / 2,
+      y: centerY - height / 2,
+      width,
+      height,
+      opacity: 1,
+    });
+    setTool("brush");
+    onClose();
+    toast.success(`${page.name} added — pick a color and paint`);
+  };
+
+  return (
+    <AnimatePresence>
+      {open && (
+        <motion.aside
+          initial={isMobile ? { y: 40, opacity: 0 } : { x: -24, opacity: 0 }}
+          animate={isMobile ? { y: 0, opacity: 1 } : { x: 0, opacity: 1 }}
+          exit={isMobile ? { y: 40, opacity: 0 } : { x: -24, opacity: 0 }}
+          transition={{ type: "spring", stiffness: 260, damping: 26 }}
+          onWheel={stopControlEvent}
+          onTouchMove={stopControlEvent}
+          className={`pointer-events-auto absolute z-50 ${
+            isMobile
+              ? "inset-x-3 bottom-20 h-[58dvh]"
+              : "bottom-6 left-[4.75rem] top-24 hidden w-[22rem] md:block"
+          }`}
+        >
+          <div className="flex h-full flex-col overflow-hidden rounded-[1.75rem] border border-cyan-100/80 bg-[linear-gradient(180deg,_rgba(255,255,255,0.98),_rgba(240,253,255,0.92))] shadow-float backdrop-blur-xl">
+            <div className="flex shrink-0 items-center justify-between gap-3 p-4 pb-3">
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-cyan-600">
+                  Coloring book
+                </p>
+                <h2 className="text-lg font-semibold text-slate-800">Pick a page</h2>
+              </div>
+              <button
+                type="button"
+                onClick={onClose}
+                className="flex h-8 shrink-0 cursor-pointer items-center justify-center rounded-xl bg-slate-50 px-3 text-xs font-semibold text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700"
+              >
+                Close
+              </button>
+            </div>
+
+            <div className="paint-scrollbar min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain px-4 pb-4 [touch-action:pan-y]">
+              {categories.map((category) => (
+                <section key={category}>
+                  <h3 className="mb-2 text-[11px] font-bold uppercase tracking-[0.16em] text-slate-400">
+                    {category}
+                  </h3>
+                  <div className="grid grid-cols-2 gap-3">
+                    {COLORING_PAGES.filter((page) => page.category === category).map((page) => (
+                      <button
+                        key={page.id}
+                        type="button"
+                        onClick={() => addColoringPage(page)}
+                        title={page.name}
+                        aria-label={`Add ${page.name} coloring page`}
+                        className="group cursor-pointer overflow-hidden rounded-[1.35rem] border border-cyan-100/80 bg-white p-2 text-left shadow-[0_12px_24px_-18px_rgba(15,23,42,0.75)] transition-all duration-200 hover:-translate-y-0.5 hover:border-cyan-200 hover:shadow-[0_18px_30px_-22px_rgba(8,145,178,0.75)] active:scale-95"
+                      >
+                        <span className="relative flex aspect-[4/5] items-center justify-center overflow-hidden rounded-2xl bg-[linear-gradient(145deg,_#ffffff_0%,_#f8fdff_58%,_#eefcff_100%)] px-3 py-2">
+                          <img
+                            src={coloringPageToSrc(page)}
+                            alt=""
+                            className="h-full w-full object-contain opacity-95 transition-transform duration-200 group-hover:scale-[1.03]"
+                            draggable={false}
+                          />
+                        </span>
+                        <span className="mt-2 block truncate px-1 text-xs font-semibold text-slate-700">
+                          {page.name}
+                        </span>
                       </button>
                     ))}
                   </div>
@@ -725,6 +910,7 @@ function PropertiesPanel({ isMobile }: { isMobile: boolean }) {
   const [strength, setStrength] = useState(0.75);
   const [processing, setProcessing] = useState(false);
   const isSticker = image?.kind === "sticker";
+  const isColoringPage = image?.kind === "coloring-page";
 
   const makeColoringPage = async () => {
     if (!image) return;
@@ -776,9 +962,10 @@ function PropertiesPanel({ isMobile }: { isMobile: boolean }) {
                 isMobile ? "mb-3 text-[11px]" : "mb-4 text-xs"
               }`}
             >
-              <Sparkles className="size-3" /> {isSticker ? "Sticker Tools" : "Magic Tools"}
+              <Sparkles className="size-3" />{" "}
+              {isSticker ? "Sticker Tools" : isColoringPage ? "Coloring Page" : "Magic Tools"}
             </h3>
-            {!isSticker && (
+            {!isSticker && !isColoringPage && (
               <>
                 <button
                   onClick={makeColoringPage}
@@ -808,8 +995,14 @@ function PropertiesPanel({ isMobile }: { isMobile: boolean }) {
               </div>
             )}
 
+            {isColoringPage && (
+              <div className="mb-4 rounded-2xl bg-cyan-50 px-4 py-3 text-xs font-medium leading-relaxed text-cyan-800 sm:text-sm">
+                Color with Brush, Pencil, or Marker. The black lines stay above your colors.
+              </div>
+            )}
+
             <div className="space-y-4">
-              {!isSticker && (
+              {!isSticker && !isColoringPage && (
                 <Slider
                   label="Line Strength"
                   value={strength}

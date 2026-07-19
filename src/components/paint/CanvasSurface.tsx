@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { usePaintStore, type Point, type CanvasImage } from "@/stores/paintStore";
 
+type ResizeHandle = "nw" | "ne" | "sw" | "se";
+
 // Cache HTMLImageElement instances by src
 const imgCache = new Map<string, HTMLImageElement>();
 function getImage(src: string): HTMLImageElement {
@@ -27,7 +29,17 @@ export function CanvasSurface() {
     imgY: number;
     historyCaptured: boolean;
   } | null>(null);
+  const resizeImgRef = useRef<{
+    id: string;
+    handle: ResizeHandle;
+    anchorX: number;
+    anchorY: number;
+    startWidth: number;
+    startHeight: number;
+    historyCaptured: boolean;
+  } | null>(null);
   const spaceRef = useRef(false);
+  const [hoveredHandle, setHoveredHandle] = useState<ResizeHandle | null>(null);
   const [size, setSize] = useState({ w: 0, h: 0 });
 
   const s = usePaintStore();
@@ -227,6 +239,29 @@ export function CanvasSurface() {
     return undefined;
   }
 
+  function hitResizeHandle(p: Point): { image: CanvasImage; handle: ResizeHandle } | null {
+    const st = usePaintStore.getState();
+    if (!st.selectedImageId || st.tool !== "select") return null;
+
+    const image = st.images.find((im) => im.id === st.selectedImageId);
+    if (!image) return null;
+
+    const radius = Math.max(14 / st.transform.scale, 8);
+    const handles: Array<{ handle: ResizeHandle; x: number; y: number }> = [
+      { handle: "nw", x: image.x, y: image.y },
+      { handle: "ne", x: image.x + image.width, y: image.y },
+      { handle: "sw", x: image.x, y: image.y + image.height },
+      { handle: "se", x: image.x + image.width, y: image.y + image.height },
+    ];
+
+    for (const handle of handles) {
+      const distance = Math.hypot(p.x - handle.x, p.y - handle.y);
+      if (distance <= radius) return { image, handle: handle.handle };
+    }
+
+    return null;
+  }
+
   // pointer handlers
   const onPointerDown = (e: React.PointerEvent) => {
     (e.target as Element).setPointerCapture(e.pointerId);
@@ -238,6 +273,23 @@ export function CanvasSurface() {
     }
     if (st.tool === "select") {
       const wp = screenToWorld(e.clientX, e.clientY);
+      const resizeHit = hitResizeHandle(wp);
+
+      if (resizeHit) {
+        const { image, handle } = resizeHit;
+        st.selectImage(image.id);
+        resizeImgRef.current = {
+          id: image.id,
+          handle,
+          anchorX: handle.includes("w") ? image.x + image.width : image.x,
+          anchorY: handle.includes("n") ? image.y + image.height : image.y,
+          startWidth: image.width,
+          startHeight: image.height,
+          historyCaptured: false,
+        };
+        return;
+      }
+
       const hit = hitImage(wp);
       if (hit) {
         st.selectImage(hit.id);
@@ -285,11 +337,39 @@ export function CanvasSurface() {
 
   const onPointerMove = (e: React.PointerEvent) => {
     const st = usePaintStore.getState();
+    if (st.tool === "select" && !dragImgRef.current && !resizeImgRef.current && !panRef.current) {
+      const wp = screenToWorld(e.clientX, e.clientY);
+      setHoveredHandle(hitResizeHandle(wp)?.handle ?? null);
+    }
     if (panRef.current) {
       const dx = e.clientX - panRef.current.x;
       const dy = e.clientY - panRef.current.y;
       panRef.current = { x: e.clientX, y: e.clientY };
       st.panBy(dx, dy);
+      return;
+    }
+    if (resizeImgRef.current) {
+      const wp = screenToWorld(e.clientX, e.clientY);
+      const resize = resizeImgRef.current;
+      const rawWidth = Math.abs(wp.x - resize.anchorX);
+      const rawHeight = Math.abs(wp.y - resize.anchorY);
+      const minScale = Math.max(0.08, 24 / resize.startWidth, 24 / resize.startHeight);
+      const scale = Math.max(
+        minScale,
+        rawWidth / resize.startWidth,
+        rawHeight / resize.startHeight,
+      );
+      const width = resize.startWidth * scale;
+      const height = resize.startHeight * scale;
+      const x = resize.handle.includes("w") ? resize.anchorX - width : resize.anchorX;
+      const y = resize.handle.includes("n") ? resize.anchorY - height : resize.anchorY;
+
+      if (!resize.historyCaptured) {
+        st.pushHistory();
+        resize.historyCaptured = true;
+      }
+
+      st.updateImage(resize.id, { x, y, width, height });
       return;
     }
     if (dragImgRef.current) {
@@ -318,6 +398,7 @@ export function CanvasSurface() {
       drawingRef.current = null;
     }
     dragImgRef.current = null;
+    resizeImgRef.current = null;
     panRef.current = null;
   };
 
@@ -334,7 +415,15 @@ export function CanvasSurface() {
   };
 
   const cursor =
-    s.tool === "pan" || spaceRef.current ? "grab" : s.tool === "select" ? "default" : "crosshair";
+    s.tool === "pan" || spaceRef.current
+      ? "grab"
+      : s.tool === "select"
+        ? hoveredHandle === "nw" || hoveredHandle === "se"
+          ? "nwse-resize"
+          : hoveredHandle === "ne" || hoveredHandle === "sw"
+            ? "nesw-resize"
+            : "default"
+        : "crosshair";
 
   return (
     <canvas
