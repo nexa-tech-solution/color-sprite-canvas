@@ -135,6 +135,9 @@ function EmptyLibrary({ onCreateProject }: { onCreateProject: () => void }) {
 }
 
 function ProjectCard({ project }: { project: PaintProject }) {
+  const importedImageCount = project.images.filter((image) => image.kind !== "sticker").length;
+  const stickerCount = project.images.filter((image) => image.kind === "sticker").length;
+
   return (
     <article className="group relative min-h-[244px] rounded-[32px] border border-white/90 bg-white/92 p-5 shadow-soft backdrop-blur-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-float">
       <Link
@@ -162,7 +165,11 @@ function ProjectCard({ project }: { project: PaintProject }) {
         <div className="mt-4 rounded-[18px] bg-[linear-gradient(135deg,_#fff0ec_0%,_#f3edff_52%,_#eaf7fb_100%)] px-3.5 py-3 text-[#667a9c]">
           <div className="flex items-center gap-2 text-xs">
             <ImageIcon className="size-4 shrink-0" />
-            <span>{formatCount(project.images.length, "imported image")}</span>
+            <span>{formatCount(importedImageCount, "imported image")}</span>
+          </div>
+          <div className="mt-2 flex items-center gap-2 text-xs">
+            <Sparkles className="size-4 shrink-0" />
+            <span>{formatCount(stickerCount, "sticker")}</span>
           </div>
           <div className="mt-2 flex items-center gap-2 text-xs">
             <PenLine className="size-4 shrink-0" />
@@ -257,15 +264,20 @@ function ProjectThumbnail({ project }: { project: PaintProject }) {
 
       drawThumbnailImages(
         context,
-        project.images.filter((image) => !image.isOutline),
+        project.images.filter((image) => !image.isOutline && image.kind !== "sticker"),
         imageElements,
       );
       drawThumbnailStrokes(context, project);
       drawThumbnailImages(
         context,
-        project.images.filter((image) => image.isOutline),
+        project.images.filter((image) => image.isOutline && image.kind !== "sticker"),
         imageElements,
         true,
+      );
+      drawThumbnailImages(
+        context,
+        project.images.filter((image) => image.kind === "sticker"),
+        imageElements,
       );
 
       context.restore();

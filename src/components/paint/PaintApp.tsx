@@ -26,6 +26,7 @@ import { CanvasSurface } from "./CanvasSurface";
 import { imageToColoringPage } from "@/lib/coloringPage";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { DEFAULT_PROJECT_NAME } from "@/lib/projects";
+import { STICKERS, type Sticker, stickerToDataUrl } from "@/lib/stickers";
 import { toast } from "sonner";
 
 const TOOLS: { id: ToolId; label: string; icon: React.ElementType }[] = [
@@ -53,15 +54,33 @@ const PALETTE = [
   "#ffffff",
 ];
 
+function stopControlEvent(event: React.SyntheticEvent) {
+  event.stopPropagation();
+}
+
 export function PaintApp() {
   const isMobile = useIsMobile();
+  const [stickersOpen, setStickersOpen] = useState(false);
 
   return (
     <div className="fixed inset-0 bg-paint-canvas overflow-hidden text-slate-700">
       <CanvasSurface />
       <WelcomeCard isMobile={isMobile} />
-      <TopBar isMobile={isMobile} />
-      <ToolDock isMobile={isMobile} />
+      <TopBar
+        isMobile={isMobile}
+        stickersOpen={stickersOpen}
+        onToggleStickers={() => setStickersOpen((open) => !open)}
+      />
+      <ToolDock
+        isMobile={isMobile}
+        stickersOpen={stickersOpen}
+        onToggleStickers={() => setStickersOpen((open) => !open)}
+      />
+      <StickerShelf
+        isMobile={isMobile}
+        open={stickersOpen}
+        onClose={() => setStickersOpen(false)}
+      />
       <BrushDock isMobile={isMobile} />
       <PropertiesPanel isMobile={isMobile} />
       <ZoomNav isMobile={isMobile} />
@@ -69,7 +88,15 @@ export function PaintApp() {
   );
 }
 
-function TopBar({ isMobile }: { isMobile: boolean }) {
+function TopBar({
+  isMobile,
+  stickersOpen,
+  onToggleStickers,
+}: {
+  isMobile: boolean;
+  stickersOpen: boolean;
+  onToggleStickers: () => void;
+}) {
   const projectName = usePaintStore((s) => s.currentProjectName);
   const setProjectName = usePaintStore((s) => s.setProjectName);
   const undo = usePaintStore((s) => s.undo);
@@ -106,6 +133,7 @@ function TopBar({ isMobile }: { isMobile: boolean }) {
       id: crypto.randomUUID(),
       src,
       originalSrc: src,
+      kind: "image",
       isOutline: false,
       x: cx - w / 2,
       y: cy - h / 2,
@@ -129,13 +157,13 @@ function TopBar({ isMobile }: { isMobile: boolean }) {
       className="pointer-events-none absolute inset-x-0 top-0 z-40 py-3 sm:py-4"
     >
       <div
-        className={`flex ${isMobile ? "items-center justify-between gap-2" : "flex-col gap-2 sm:flex-row sm:items-center sm:justify-between"}`}
+        className={`flex ${isMobile ? "px-3" : "flex-col gap-2 sm:flex-row sm:items-center sm:justify-between"}`}
       >
         <div
           className={`pointer-events-auto flex min-w-0 items-center gap-3 border border-slate-100 bg-paint-panel/80 shadow-soft backdrop-blur-md ${
             isMobile
-              ? "max-w-[15rem] rounded-full px-3 py-2"
-              : "max-w-[min(100%,36rem)] rounded-2xl px-3 py-2 sm:px-4"
+              ? "w-full rounded-full px-3 py-2"
+              : "ml-6 max-w-[min(calc(100%-1.5rem),36rem)] rounded-2xl px-0 py-2 sm:px-2"
           }`}
         >
           <Link
@@ -145,41 +173,42 @@ function TopBar({ isMobile }: { isMobile: boolean }) {
           >
             <ChevronLeft className="size-4" />
           </Link>
-          <div className="flex size-8 shrink-0 items-center justify-center rounded-xl bg-brand-pink text-xl font-bold text-pink-500">
+          {isMobile && (
+            <span className="min-w-0 flex-1 truncate text-base font-medium text-slate-400">
+              {projectName}
+            </span>
+          )}
+          {/* <div className="flex size-8 shrink-0 items-center justify-center rounded-xl bg-brand-pink text-xl font-bold text-pink-500">
             P
           </div>
           <span
-            className={`shrink-0 truncate font-semibold tracking-tight ${isMobile ? "max-w-[5.25rem] text-base" : ""}`}
+            className={`shrink-0 truncate font-semibold tracking-tight ${isMobile ? "max-w-[7rem] text-base" : ""}`}
           >
             PastelPaint
-          </span>
-          <div className="h-4 w-px shrink-0 bg-slate-200" />
-          <input
-            value={draftName}
-            onChange={(e) => setDraftName(e.target.value)}
-            onBlur={commitProjectName}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                e.currentTarget.blur();
-              }
-              if (e.key === "Escape") {
-                setDraftName(projectName);
-                e.currentTarget.blur();
-              }
-            }}
-            aria-label="Project name"
-            className={`min-w-0 bg-transparent text-slate-400 outline-none placeholder:text-slate-300 ${
-              isMobile ? "w-24 text-sm" : "w-52 text-base"
-            }`}
-            placeholder={DEFAULT_PROJECT_NAME}
-          />
-        </div>
+          </span> */}
+          {/* <div className="h-4 w-px shrink-0 bg-slate-200" /> */}
+          {!isMobile && (
+            <input
+              value={draftName}
+              onChange={(e) => setDraftName(e.target.value)}
+              onBlur={commitProjectName}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.currentTarget.blur();
+                }
+                if (e.key === "Escape") {
+                  setDraftName(projectName);
+                  e.currentTarget.blur();
+                }
+              }}
+              aria-label="Project name"
+              className="min-w-0 bg-transparent text-base text-slate-400 outline-none placeholder:text-slate-300"
+              placeholder={DEFAULT_PROJECT_NAME}
+            />
+          )}
 
-        <div
-          className={`pointer-events-auto flex ${isMobile ? "shrink-0" : "w-full items-center justify-between gap-2 sm:w-auto sm:justify-end"}`}
-        >
-          {isMobile ? (
-            <div className="flex items-center rounded-full border border-slate-100 bg-paint-panel/85 p-1 shadow-soft backdrop-blur-md">
+          {isMobile && (
+            <div className="paint-scrollbar ml-1 flex max-w-[58%] shrink-0 items-center overflow-x-auto rounded-full bg-slate-50/70 p-1">
               <IconBtn
                 label="Undo"
                 disabled={!canUndo}
@@ -207,6 +236,15 @@ function TopBar({ isMobile }: { isMobile: boolean }) {
               <IconBtn label="Import image" onClick={onImport} className="size-9 rounded-full">
                 <ImagePlus className="size-4" />
               </IconBtn>
+              <IconBtn
+                label="Stickers"
+                onClick={onToggleStickers}
+                className={`size-9 rounded-full ${
+                  stickersOpen ? "bg-brand-lemon text-amber-600" : ""
+                }`}
+              >
+                <Sparkles className="size-4" />
+              </IconBtn>
               <button
                 onClick={onExport}
                 aria-label="Export canvas"
@@ -215,7 +253,11 @@ function TopBar({ isMobile }: { isMobile: boolean }) {
                 <Download className="size-4" />
               </button>
             </div>
-          ) : (
+          )}
+        </div>
+
+        {!isMobile && (
+          <div className="pointer-events-auto flex w-full items-center justify-between gap-2 sm:w-auto sm:justify-end">
             <>
               <div className="flex min-w-0 items-center rounded-2xl border border-slate-100 bg-paint-panel/80 p-1 shadow-soft backdrop-blur-md">
                 <IconBtn label="Undo" disabled={!canUndo} onClick={undo}>
@@ -235,14 +277,24 @@ function TopBar({ isMobile }: { isMobile: boolean }) {
                 <ImagePlus className="size-4" /> Import
               </button>
               <button
+                onClick={onToggleStickers}
+                className={`flex items-center gap-2 rounded-2xl border px-4 py-2.5 text-sm font-medium shadow-soft transition-colors ${
+                  stickersOpen
+                    ? "border-amber-200 bg-brand-lemon text-amber-700"
+                    : "border-slate-100 bg-paint-panel/80 text-slate-600 hover:bg-white"
+                }`}
+              >
+                <Sparkles className="size-4" /> Stickers
+              </button>
+              <button
                 onClick={onExport}
                 className="flex items-center gap-2 rounded-2xl border border-brand-lilac/30 bg-brand-lilac/40 px-6 py-2.5 text-sm font-medium text-purple-700 shadow-soft transition-all hover:bg-brand-lilac/60"
               >
                 <Download className="size-4" /> Export
               </button>
             </>
-          )}
-        </div>
+          </div>
+        )}
       </div>
 
       <input
@@ -286,7 +338,15 @@ function IconBtn({
   );
 }
 
-function ToolDock({ isMobile }: { isMobile: boolean }) {
+function ToolDock({
+  isMobile,
+  stickersOpen,
+  onToggleStickers,
+}: {
+  isMobile: boolean;
+  stickersOpen: boolean;
+  onToggleStickers: () => void;
+}) {
   const tool = usePaintStore((s) => s.tool);
   const setTool = usePaintStore((s) => s.setTool);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -306,6 +366,7 @@ function ToolDock({ isMobile }: { isMobile: boolean }) {
       id: crypto.randomUUID(),
       src,
       originalSrc: src,
+      kind: "image",
       isOutline: false,
       x: cx - w / 2,
       y: cy - h / 2,
@@ -318,7 +379,7 @@ function ToolDock({ isMobile }: { isMobile: boolean }) {
 
   if (isMobile) {
     return (
-      <aside className="pointer-events-none absolute inset-x-0 top-[4.75rem] z-40 flex justify-center px-3 md:hidden">
+      <aside className="pointer-events-none absolute inset-x-0 top-[5.5rem] z-40 flex justify-center px-3 md:hidden">
         <motion.div
           initial={{ y: -20, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
@@ -343,6 +404,18 @@ function ToolDock({ isMobile }: { isMobile: boolean }) {
               </button>
             );
           })}
+          <button
+            onClick={onToggleStickers}
+            title="Stickers"
+            aria-label="Stickers"
+            className={`flex size-10 shrink-0 items-center justify-center rounded-full transition-all active:scale-90 ${
+              stickersOpen
+                ? "bg-brand-lemon text-amber-600 shadow-inner"
+                : "text-slate-400 hover:bg-slate-50 hover:text-slate-600"
+            }`}
+          >
+            <Sparkles className="size-[18px]" />
+          </button>
         </motion.div>
       </aside>
     );
@@ -375,6 +448,18 @@ function ToolDock({ isMobile }: { isMobile: boolean }) {
       })}
       <div className="mx-auto my-1 h-px w-8 bg-slate-100" />
       <button
+        onClick={onToggleStickers}
+        title="Stickers"
+        aria-label="Stickers"
+        className={`flex size-11 items-center justify-center rounded-2xl transition-all active:scale-90 ${
+          stickersOpen
+            ? "bg-brand-lemon text-amber-600 shadow-inner"
+            : "text-slate-400 hover:bg-slate-50 hover:text-slate-600"
+        }`}
+      >
+        <Sparkles className="size-5" />
+      </button>
+      <button
         onClick={() => fileRef.current?.click()}
         title="Import image"
         className="flex size-11 items-center justify-center rounded-2xl text-slate-400 hover:bg-slate-50 hover:text-slate-600"
@@ -396,15 +481,113 @@ function ToolDock({ isMobile }: { isMobile: boolean }) {
   );
 }
 
+function StickerShelf({
+  isMobile,
+  open,
+  onClose,
+}: {
+  isMobile: boolean;
+  open: boolean;
+  onClose: () => void;
+}) {
+  const addImage = usePaintStore((s) => s.addImage);
+  const setTool = usePaintStore((s) => s.setTool);
+  const transform = usePaintStore((s) => s.transform);
+  const categories: Sticker["category"][] = ["Cute", "Nature", "Play"];
+
+  const addSticker = (sticker: Sticker) => {
+    const src = stickerToDataUrl(sticker);
+    const maxStickerWidth = isMobile ? 132 : 156;
+    const scale = Math.min(1, maxStickerWidth / sticker.width);
+    const width = Math.round(sticker.width * scale);
+    const height = Math.round(sticker.height * scale);
+    const centerX = (window.innerWidth / 2 - transform.x) / transform.scale;
+    const centerY = (window.innerHeight / 2 - transform.y) / transform.scale;
+
+    addImage({
+      id: crypto.randomUUID(),
+      src,
+      originalSrc: src,
+      kind: "sticker",
+      isOutline: false,
+      x: centerX - width / 2,
+      y: centerY - height / 2,
+      width,
+      height,
+      opacity: 1,
+    });
+    setTool("select");
+    toast.success(`${sticker.name} sticker added`);
+  };
+
+  return (
+    <AnimatePresence>
+      {open && (
+        <motion.aside
+          initial={isMobile ? { y: 40, opacity: 0 } : { x: -24, opacity: 0 }}
+          animate={isMobile ? { y: 0, opacity: 1 } : { x: 0, opacity: 1 }}
+          exit={isMobile ? { y: 40, opacity: 0 } : { x: -24, opacity: 0 }}
+          transition={{ type: "spring", stiffness: 260, damping: 26 }}
+          className={`pointer-events-none absolute z-50 ${
+            isMobile
+              ? "inset-x-3 bottom-20 max-h-[48vh]"
+              : "left-[4.75rem] top-1/2 hidden w-[19rem] -translate-y-1/2 md:block"
+          }`}
+        >
+          <div className="paint-scrollbar pointer-events-auto max-h-full overflow-y-auto rounded-[1.75rem] border border-slate-100 bg-paint-panel/95 p-4 shadow-float backdrop-blur-xl">
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-amber-500">
+                  Sticker book
+                </p>
+                <h2 className="text-lg font-semibold text-slate-800">Pick a sticker</h2>
+              </div>
+              <button
+                type="button"
+                onClick={onClose}
+                className="flex h-8 shrink-0 cursor-pointer items-center justify-center rounded-xl bg-slate-50 px-3 text-xs font-semibold text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700"
+              >
+                Close
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              {categories.map((category) => (
+                <section key={category}>
+                  <h3 className="mb-2 text-[11px] font-bold uppercase tracking-[0.16em] text-slate-400">
+                    {category}
+                  </h3>
+                  <div className="grid grid-cols-4 gap-2">
+                    {STICKERS.filter((sticker) => sticker.category === category).map((sticker) => (
+                      <button
+                        key={sticker.id}
+                        type="button"
+                        onClick={() => addSticker(sticker)}
+                        title={sticker.name}
+                        aria-label={`Add ${sticker.name} sticker`}
+                        className="flex aspect-square cursor-pointer items-center justify-center rounded-2xl border border-slate-100 bg-white p-2 shadow-[0_8px_18px_-15px_rgba(15,23,42,0.7)] transition-transform hover:-translate-y-0.5 hover:bg-slate-50 active:scale-95"
+                      >
+                        <img
+                          src={stickerToDataUrl(sticker)}
+                          alt=""
+                          className="max-h-full max-w-full object-contain"
+                          draggable={false}
+                        />
+                      </button>
+                    ))}
+                  </div>
+                </section>
+              ))}
+            </div>
+          </div>
+        </motion.aside>
+      )}
+    </AnimatePresence>
+  );
+}
+
 function BrushDock({ isMobile }: { isMobile: boolean }) {
   const tool = usePaintStore((s) => s.tool);
-  const color = usePaintStore((s) => s.color);
-  const setColor = usePaintStore((s) => s.setColor);
-  const brushSize = usePaintStore((s) => s.brushSize);
-  const setBrushSize = usePaintStore((s) => s.setBrushSize);
-  const opacity = usePaintStore((s) => s.opacity);
-  const setOpacity = usePaintStore((s) => s.setOpacity);
-
   const showDock = ["pencil", "brush", "marker", "eraser"].includes(tool);
 
   return (
@@ -419,91 +602,116 @@ function BrushDock({ isMobile }: { isMobile: boolean }) {
             isMobile ? "bottom-5" : "bottom-6"
           }`}
         >
-          <div className="flex items-center gap-3 sm:gap-5 px-4 sm:px-6 py-3 bg-paint-panel/90 backdrop-blur-xl rounded-full shadow-soft border border-slate-100">
-            <div className="flex items-center gap-3">
-              <div
-                className="size-10 rounded-full flex items-center justify-center shadow-inner"
-                style={{
-                  backgroundColor: tool === "eraser" ? "#fff" : color,
-                  border: tool === "eraser" ? "2px dashed #cbd5e1" : "none",
-                }}
-              >
-                <div
-                  className="rounded-full"
-                  style={{
-                    width: Math.max(4, brushSize * 0.6),
-                    height: Math.max(4, brushSize * 0.6),
-                    backgroundColor: "rgba(255,255,255,0.6)",
-                  }}
-                />
-              </div>
-              <div className="hidden sm:flex flex-col">
-                <span className="text-sm font-bold capitalize">{tool}</span>
-                <span className="text-[10px] text-slate-400">
-                  {brushSize}pt · {Math.round(opacity * 100)}%
-                </span>
-              </div>
-            </div>
-
-            <div className="h-8 w-px bg-slate-200 hidden sm:block" />
-
-            <div className="hidden sm:flex items-center gap-3">
-              <input
-                type="range"
-                min={1}
-                max={80}
-                value={brushSize}
-                onChange={(e) => setBrushSize(Number(e.target.value))}
-                className="w-24 accent-pink-400 cursor-pointer"
-                aria-label="Brush size"
-              />
-              <input
-                type="range"
-                min={0.05}
-                max={1}
-                step={0.01}
-                value={opacity}
-                onChange={(e) => setOpacity(Number(e.target.value))}
-                className="w-20 accent-pink-300 cursor-pointer"
-                aria-label="Opacity"
-              />
-            </div>
-
-            <div className="h-8 w-px bg-slate-200" />
-
-            <div className="paint-scrollbar flex gap-1 overflow-x-auto overflow-y-hidden px-2 py-1 max-w-[236px] sm:max-w-none">
-              {PALETTE.map((c) => (
-                <button
-                  key={c}
-                  onClick={() => setColor(c)}
-                  aria-label={`Color ${c}`}
-                  className={`flex size-9 shrink-0 items-center justify-center rounded-full border-2 bg-white transition-transform hover:scale-110 ${
-                    color === c ? "border-pink-400" : "border-transparent"
-                  }`}
-                >
-                  <span
-                    className="block size-7 rounded-full"
-                    style={{
-                      backgroundColor: c,
-                      border: c === "#ffffff" ? "1px solid #e2e8f0" : "none",
-                    }}
-                  />
-                </button>
-              ))}
-              <label className="flex size-9 shrink-0 cursor-pointer items-center justify-center rounded-full border-2 border-dashed border-slate-300 bg-slate-50 text-slate-400 transition-colors hover:bg-slate-100">
-                <Plus className="size-3" />
-                <input
-                  type="color"
-                  className="sr-only"
-                  value={color}
-                  onChange={(e) => setColor(e.target.value)}
-                />
-              </label>
-            </div>
+          <div className="flex transform-gpu items-center gap-3 rounded-full border border-slate-100 bg-paint-panel/90 px-4 py-3 shadow-soft backdrop-blur-xl [backface-visibility:hidden] [will-change:transform] sm:gap-5 sm:px-6">
+            <BrushDockContent tool={tool} />
           </div>
         </motion.footer>
       )}
     </AnimatePresence>
+  );
+}
+
+function BrushDockContent({ tool }: { tool: ToolId }) {
+  const color = usePaintStore((s) => s.color);
+  const setColor = usePaintStore((s) => s.setColor);
+  const brushSize = usePaintStore((s) => s.brushSize);
+  const setBrushSize = usePaintStore((s) => s.setBrushSize);
+  const opacity = usePaintStore((s) => s.opacity);
+  const setOpacity = usePaintStore((s) => s.setOpacity);
+
+  return (
+    <>
+      <div className="flex w-[12rem] shrink-0 items-center gap-3">
+        <div
+          className="flex size-10 shrink-0 items-center justify-center rounded-full shadow-inner"
+          style={{
+            backgroundColor: tool === "eraser" ? "#fff" : color,
+            border: tool === "eraser" ? "2px dashed #cbd5e1" : "none",
+          }}
+        >
+          <div
+            className="rounded-full"
+            style={{
+              width: Math.max(4, brushSize * 0.6),
+              height: Math.max(4, brushSize * 0.6),
+              backgroundColor: "rgba(255,255,255,0.6)",
+            }}
+          />
+        </div>
+        <div className="hidden min-w-[5.75rem] flex-col sm:flex">
+          <span className="text-sm font-bold capitalize">{tool}</span>
+          <span className="text-[10px] tabular-nums text-slate-400">
+            {brushSize}pt · {Math.round(opacity * 100)}%
+          </span>
+        </div>
+      </div>
+
+      <div className="hidden h-8 w-px shrink-0 bg-slate-200 sm:block" />
+
+      <div className="hidden w-[13.25rem] shrink-0 items-center gap-3 sm:flex">
+        <input
+          type="range"
+          min={1}
+          max={80}
+          value={brushSize}
+          onChange={(e) => setBrushSize(Number(e.target.value))}
+          onPointerDown={stopControlEvent}
+          onPointerMove={stopControlEvent}
+          onPointerUp={stopControlEvent}
+          onPointerCancel={stopControlEvent}
+          onWheel={stopControlEvent}
+          className="w-24 shrink-0 accent-pink-400 cursor-pointer"
+          aria-label="Brush size"
+        />
+        <input
+          type="range"
+          min={0.05}
+          max={1}
+          step={0.01}
+          value={opacity}
+          onChange={(e) => setOpacity(Number(e.target.value))}
+          onPointerDown={stopControlEvent}
+          onPointerMove={stopControlEvent}
+          onPointerUp={stopControlEvent}
+          onPointerCancel={stopControlEvent}
+          onWheel={stopControlEvent}
+          className="w-20 shrink-0 accent-pink-300 cursor-pointer"
+          aria-label="Opacity"
+        />
+      </div>
+
+      <div className="h-8 w-px shrink-0 bg-slate-200" />
+
+      <div className="paint-scrollbar flex max-w-[236px] gap-1 overflow-x-auto overflow-y-hidden px-2 py-1 sm:max-w-none">
+        {PALETTE.map((c) => (
+          <button
+            key={c}
+            onClick={() => setColor(c)}
+            aria-label={`Color ${c}`}
+            className={`flex size-9 shrink-0 items-center justify-center rounded-full border-2 bg-white transition-transform hover:scale-110 ${
+              color === c ? "border-pink-400" : "border-transparent"
+            }`}
+          >
+            <span
+              className="block size-7 rounded-full"
+              style={{
+                backgroundColor: c,
+                border: c === "#ffffff" ? "1px solid #e2e8f0" : "none",
+              }}
+            />
+          </button>
+        ))}
+        <label className="flex size-9 shrink-0 cursor-pointer items-center justify-center rounded-full border-2 border-dashed border-slate-300 bg-slate-50 text-slate-400 transition-colors hover:bg-slate-100">
+          <Plus className="size-3" />
+          <input
+            type="color"
+            className="sr-only"
+            value={color}
+            onChange={(e) => setColor(e.target.value)}
+          />
+        </label>
+      </div>
+    </>
   );
 }
 
@@ -516,6 +724,7 @@ function PropertiesPanel({ isMobile }: { isMobile: boolean }) {
   const pushHistory = usePaintStore((s) => s.pushHistory);
   const [strength, setStrength] = useState(0.75);
   const [processing, setProcessing] = useState(false);
+  const isSticker = image?.kind === "sticker";
 
   const makeColoringPage = async () => {
     if (!image) return;
@@ -553,42 +762,62 @@ function PropertiesPanel({ isMobile }: { isMobile: boolean }) {
           transition={{ type: "spring", stiffness: 240, damping: 26 }}
           className={`absolute z-40 flex flex-col gap-4 ${
             isMobile
-              ? "left-3 right-3 top-[10.5rem] max-h-[calc(100vh-13rem)] overflow-y-auto paint-scrollbar"
+              ? "paint-scrollbar inset-x-3 bottom-24 max-h-[44vh] overflow-y-auto"
               : "right-4 top-24 w-72 max-w-[calc(100vw-32px)] md:top-1/2 md:-translate-y-1/2"
           }`}
         >
-          <div className="p-5 bg-paint-panel/95 backdrop-blur-xl rounded-[2rem] shadow-soft border border-slate-100">
-            <h3 className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-4 flex items-center gap-2">
-              <Sparkles className="size-3" /> Magic Tools
-            </h3>
-            <button
-              onClick={makeColoringPage}
-              disabled={processing}
-              className="w-full bg-gradient-to-r from-pink-400 to-rose-400 text-white py-3 rounded-2xl font-semibold shadow-float mb-3 hover:scale-[1.02] transition-transform active:scale-95 disabled:opacity-60"
+          <div
+            className={`border border-slate-100 bg-paint-panel/95 shadow-soft backdrop-blur-xl ${
+              isMobile ? "rounded-[1.5rem] p-4" : "rounded-[2rem] p-5"
+            }`}
+          >
+            <h3
+              className={`flex items-center gap-2 font-bold uppercase tracking-widest text-slate-400 ${
+                isMobile ? "mb-3 text-[11px]" : "mb-4 text-xs"
+              }`}
             >
-              {processing
-                ? "Working magic…"
-                : image.isOutline
-                  ? "Re-generate outline"
-                  : "Make Coloring Page"}
-            </button>
-            {image.isOutline && (
-              <button
-                onClick={restore}
-                className="w-full flex items-center justify-center gap-2 py-2 text-sm text-slate-500 hover:text-slate-700 bg-slate-50 rounded-xl mb-3"
-              >
-                <RotateCcw className="size-4" /> Restore original
-              </button>
+              <Sparkles className="size-3" /> {isSticker ? "Sticker Tools" : "Magic Tools"}
+            </h3>
+            {!isSticker && (
+              <>
+                <button
+                  onClick={makeColoringPage}
+                  disabled={processing}
+                  className="w-full bg-gradient-to-r from-pink-400 to-rose-400 text-white py-3 rounded-2xl font-semibold shadow-float mb-3 hover:scale-[1.02] transition-transform active:scale-95 disabled:opacity-60"
+                >
+                  {processing
+                    ? "Working magic…"
+                    : image.isOutline
+                      ? "Re-generate outline"
+                      : "Make Coloring Page"}
+                </button>
+                {image.isOutline && (
+                  <button
+                    onClick={restore}
+                    className="w-full flex items-center justify-center gap-2 py-2 text-sm text-slate-500 hover:text-slate-700 bg-slate-50 rounded-xl mb-3"
+                  >
+                    <RotateCcw className="size-4" /> Restore original
+                  </button>
+                )}
+              </>
+            )}
+
+            {isSticker && (
+              <div className="mb-4 rounded-2xl bg-amber-50 px-4 py-3 text-xs font-medium leading-relaxed text-amber-700 sm:text-sm">
+                Move it with Select, duplicate it, or soften it with opacity.
+              </div>
             )}
 
             <div className="space-y-4">
-              <Slider
-                label="Line Strength"
-                value={strength}
-                onChange={setStrength}
-                min={0.2}
-                max={1}
-              />
+              {!isSticker && (
+                <Slider
+                  label="Line Strength"
+                  value={strength}
+                  onChange={setStrength}
+                  min={0.2}
+                  max={1}
+                />
+              )}
               <Slider
                 label="Opacity"
                 value={image.opacity}
@@ -600,7 +829,11 @@ function PropertiesPanel({ isMobile }: { isMobile: boolean }) {
             </div>
           </div>
 
-          <div className="p-3 bg-paint-panel/95 backdrop-blur-xl rounded-[2rem] shadow-soft border border-slate-100 flex gap-2">
+          <div
+            className={`flex gap-2 border border-slate-100 bg-paint-panel/95 shadow-soft backdrop-blur-xl ${
+              isMobile ? "rounded-[1.5rem] p-2" : "rounded-[2rem] p-3"
+            }`}
+          >
             <button
               onClick={duplicate}
               className="flex-1 flex items-center justify-center gap-2 py-2.5 text-sm text-slate-600 hover:bg-slate-50 rounded-2xl"
@@ -828,8 +1061,9 @@ async function exportCanvas() {
   ctx.translate(-minX * scaleFactor, -minY * scaleFactor);
   ctx.scale(scaleFactor, scaleFactor);
 
-  const bgs = images.filter((i) => !i.isOutline);
-  const outs = images.filter((i) => i.isOutline);
+  const bgs = images.filter((i) => !i.isOutline && i.kind !== "sticker");
+  const outs = images.filter((i) => i.isOutline && i.kind !== "sticker");
+  const stickers = images.filter((i) => i.kind === "sticker");
   await Promise.all(images.map((im) => waitLoad(im.src)));
 
   for (const im of bgs) {
@@ -865,6 +1099,13 @@ async function exportCanvas() {
   for (const im of outs) {
     const img = await waitLoad(im.src);
     ctx.globalCompositeOperation = "multiply";
+    ctx.drawImage(img, im.x, im.y, im.width, im.height);
+  }
+  ctx.globalCompositeOperation = "source-over";
+  ctx.globalAlpha = 1;
+  for (const im of stickers) {
+    const img = await waitLoad(im.src);
+    ctx.globalAlpha = im.opacity;
     ctx.drawImage(img, im.x, im.y, im.width, im.height);
   }
 

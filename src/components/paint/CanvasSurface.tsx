@@ -53,7 +53,10 @@ export function CanvasSurface() {
         e.preventDefault();
         usePaintStore.getState().redo();
       }
-      if ((e.key === "Delete" || e.key === "Backspace") && usePaintStore.getState().selectedImageId) {
+      if (
+        (e.key === "Delete" || e.key === "Backspace") &&
+        usePaintStore.getState().selectedImageId
+      ) {
         usePaintStore.getState().removeImage(usePaintStore.getState().selectedImageId!);
       }
     };
@@ -84,15 +87,32 @@ export function CanvasSurface() {
     const st = usePaintStore.getState();
     const { transform, strokes, images, selectedImageId, tool } = st;
 
+    const drawImage = (im: CanvasImage) => {
+      const img = getImage(im.src);
+      if (!img.complete) {
+        img.onload = () => {
+          if (rafRef.current != null) return;
+          rafRef.current = requestAnimationFrame(() => {
+            rafRef.current = null;
+            redraw();
+          });
+        };
+        return;
+      }
+      ctx.globalAlpha = im.opacity;
+      ctx.drawImage(img, im.x, im.y, im.width, im.height);
+      ctx.globalAlpha = 1;
+    };
+
     ctx.save();
     ctx.translate(transform.x, transform.y);
     ctx.scale(transform.scale, transform.scale);
 
-    // draw images (below outline layer heuristic: images with isOutline drawn last)
-    const bgImages = images.filter((i) => !i.isOutline);
-    const outlineImages = images.filter((i) => i.isOutline);
+    const bgImages = images.filter((i) => !i.isOutline && i.kind !== "sticker");
+    const outlineImages = images.filter((i) => i.isOutline && i.kind !== "sticker");
+    const stickerImages = images.filter((i) => i.kind === "sticker");
 
-    for (const im of bgImages) drawImage(ctx, im);
+    for (const im of bgImages) drawImage(im);
 
     // strokes between bg images and outline images so painting under outline works
     for (const stroke of strokes) {
@@ -104,8 +124,7 @@ export function CanvasSurface() {
         ctx.globalCompositeOperation = "destination-out";
         ctx.strokeStyle = "rgba(0,0,0,1)";
       } else {
-        ctx.globalCompositeOperation =
-          stroke.tool === "marker" ? "multiply" : "source-over";
+        ctx.globalCompositeOperation = stroke.tool === "marker" ? "multiply" : "source-over";
         ctx.strokeStyle = stroke.color;
       }
       const p = stroke.points;
@@ -133,9 +152,11 @@ export function CanvasSurface() {
     for (const im of outlineImages) {
       ctx.save();
       ctx.globalCompositeOperation = "multiply";
-      drawImage(ctx, im);
+      drawImage(im);
       ctx.restore();
     }
+
+    for (const im of stickerImages) drawImage(im);
 
     // selection outline
     if (selectedImageId && tool === "select") {
@@ -169,17 +190,6 @@ export function CanvasSurface() {
     ctx.restore();
   }, [size]);
 
-  function drawImage(ctx: CanvasRenderingContext2D, im: CanvasImage) {
-    const img = getImage(im.src);
-    if (!img.complete) {
-      img.onload = () => scheduleRedraw();
-      return;
-    }
-    ctx.globalAlpha = im.opacity;
-    ctx.drawImage(img, im.x, im.y, im.width, im.height);
-    ctx.globalAlpha = 1;
-  }
-
   const scheduleRedraw = useCallback(() => {
     if (rafRef.current != null) return;
     rafRef.current = requestAnimationFrame(() => {
@@ -211,7 +221,8 @@ export function CanvasSurface() {
     const imgs = usePaintStore.getState().images;
     for (let i = imgs.length - 1; i >= 0; i--) {
       const im = imgs[i];
-      if (p.x >= im.x && p.x <= im.x + im.width && p.y >= im.y && p.y <= im.y + im.height) return im;
+      if (p.x >= im.x && p.x <= im.x + im.width && p.y >= im.y && p.y <= im.y + im.height)
+        return im;
     }
     return undefined;
   }
@@ -323,11 +334,7 @@ export function CanvasSurface() {
   };
 
   const cursor =
-    s.tool === "pan" || spaceRef.current
-      ? "grab"
-      : s.tool === "select"
-        ? "default"
-        : "crosshair";
+    s.tool === "pan" || spaceRef.current ? "grab" : s.tool === "select" ? "default" : "crosshair";
 
   return (
     <canvas

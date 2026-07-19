@@ -16,6 +16,7 @@ export interface CanvasImage {
   id: string;
   src: string;
   originalSrc: string;
+  kind?: "image" | "sticker";
   isOutline: boolean;
   x: number;
   y: number;
