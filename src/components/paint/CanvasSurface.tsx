@@ -480,7 +480,10 @@ export function CanvasSurface() {
       return;
     }
     if (drawingRef.current) {
-      const wp = clampPointToImage(screenToWorld(e.clientX, e.clientY), getBackgroundImage(st.images));
+      const wp = clampPointToImage(
+        screenToWorld(e.clientX, e.clientY),
+        getBackgroundImage(st.images),
+      );
       st.extendStroke(drawingRef.current.id, wp);
     }
   };

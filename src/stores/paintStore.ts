@@ -93,7 +93,7 @@ function getViewportFrame(viewport: Viewport): ViewportFrame {
   const isMobile = viewport.width < 768;
   const leftInset = isMobile ? 16 : 32;
   const rightInset = isMobile ? 16 : 32;
-  const topInset = isMobile ? 148 : 118;
+  const topInset = isMobile ? 196 : 118;
   const bottomInset = isMobile ? 170 : 132;
 
   return {
@@ -120,11 +120,7 @@ function getMinScale(image: CanvasImage | null, viewport: Viewport) {
   const availableWidth = Math.max(1, frame.width - contentPadding * 2);
   const availableHeight = Math.max(1, frame.height - contentPadding * 2);
 
-  return clamp(
-    Math.min(availableWidth / image.width, availableHeight / image.height),
-    0.1,
-    3,
-  );
+  return clamp(Math.min(availableWidth / image.width, availableHeight / image.height), 0.1, 3);
 }
 
 function clampTransform(transform: Transform, viewport: Viewport, image: CanvasImage | null) {
@@ -274,11 +270,7 @@ export const usePaintStore = create<PaintState>((set, get) => ({
   zoomAt: (factor, cx, cy) =>
     set((s) => {
       const background = getBackgroundImage(s.images);
-      const nextScale = clamp(
-        s.transform.scale * factor,
-        getMinScale(background, s.viewport),
-        8,
-      );
+      const nextScale = clamp(s.transform.scale * factor, getMinScale(background, s.viewport), 8);
       const k = nextScale / s.transform.scale;
       return {
         transform: clampTransform(
