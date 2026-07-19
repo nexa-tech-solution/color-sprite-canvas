@@ -1,38 +1,15 @@
 import { create } from "zustand";
+import {
+  DEFAULT_PROJECT_NAME,
+  type CanvasImage,
+  type PaintProject,
+  type Point,
+  type Stroke,
+  type Transform,
+} from "@/lib/projects";
 
 export type ToolId = "select" | "pan" | "pencil" | "brush" | "marker" | "eraser" | "image";
-
-export interface Point {
-  x: number;
-  y: number;
-}
-
-export interface Stroke {
-  id: string;
-  tool: "pencil" | "brush" | "marker" | "eraser";
-  color: string;
-  size: number;
-  opacity: number;
-  points: Point[];
-}
-
-export interface CanvasImage {
-  id: string;
-  src: string; // current displayed src (may be coloring outline)
-  originalSrc: string; // preserved original
-  isOutline: boolean;
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-  opacity: number;
-}
-
-export interface Transform {
-  x: number;
-  y: number;
-  scale: number;
-}
+export type { CanvasImage, PaintProject, Point, Stroke, Transform };
 
 interface Snapshot {
   strokes: Stroke[];
@@ -40,6 +17,12 @@ interface Snapshot {
 }
 
 interface PaintState {
+  currentProjectId: string | null;
+  currentProjectName: string;
+  currentProjectCreatedAt: string | null;
+  currentProjectUpdatedAt: string | null;
+  isProjectLoaded: boolean;
+
   tool: ToolId;
   color: string;
   brushSize: number;
@@ -57,6 +40,8 @@ interface PaintState {
   history: Snapshot[];
   future: Snapshot[];
 
+  loadProject: (project: PaintProject) => void;
+  setProjectName: (name: string) => void;
   setTool: (t: ToolId) => void;
   setColor: (c: string) => void;
   setBrushSize: (n: number) => void;
@@ -92,7 +77,30 @@ function snap(state: PaintState): Snapshot {
   };
 }
 
+export function projectFromState(state: PaintState): PaintProject | null {
+  if (!state.currentProjectId || !state.currentProjectCreatedAt) return null;
+
+  return {
+    id: state.currentProjectId,
+    name: state.currentProjectName.trim() || DEFAULT_PROJECT_NAME,
+    createdAt: state.currentProjectCreatedAt,
+    updatedAt: new Date().toISOString(),
+    transform: { ...state.transform },
+    strokes: state.strokes.map((stroke) => ({
+      ...stroke,
+      points: stroke.points.map((point) => ({ ...point })),
+    })),
+    images: state.images.map((image) => ({ ...image })),
+  };
+}
+
 export const usePaintStore = create<PaintState>((set, get) => ({
+  currentProjectId: null,
+  currentProjectName: DEFAULT_PROJECT_NAME,
+  currentProjectCreatedAt: null,
+  currentProjectUpdatedAt: null,
+  isProjectLoaded: false,
+
   tool: "brush",
   color: "#f472b6",
   brushSize: 14,
@@ -110,6 +118,25 @@ export const usePaintStore = create<PaintState>((set, get) => ({
   history: [],
   future: [],
 
+  loadProject: (project) =>
+    set({
+      currentProjectId: project.id,
+      currentProjectName: project.name,
+      currentProjectCreatedAt: project.createdAt,
+      currentProjectUpdatedAt: project.updatedAt,
+      isProjectLoaded: true,
+      transform: { ...project.transform },
+      strokes: project.strokes.map((stroke) => ({
+        ...stroke,
+        points: stroke.points.map((point) => ({ ...point })),
+      })),
+      images: project.images.map((image) => ({ ...image })),
+      selectedImageId: null,
+      showWelcome: project.strokes.length === 0 && project.images.length === 0,
+      history: [],
+      future: [],
+    }),
+  setProjectName: (name) => set({ currentProjectName: name.trim() || DEFAULT_PROJECT_NAME }),
   setTool: (tool) =>
     set({ tool, selectedImageId: tool === "select" ? get().selectedImageId : null }),
   setColor: (color) =>

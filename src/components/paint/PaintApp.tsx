@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
+import { Link } from "@tanstack/react-router";
 import {
+  ChevronLeft,
   MousePointer2,
   Hand,
   Pencil,
@@ -23,6 +25,7 @@ import { usePaintStore, type ToolId } from "@/stores/paintStore";
 import { CanvasSurface } from "./CanvasSurface";
 import { imageToColoringPage } from "@/lib/coloringPage";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { DEFAULT_PROJECT_NAME } from "@/lib/projects";
 import { toast } from "sonner";
 
 const TOOLS: { id: ToolId; label: string; icon: React.ElementType }[] = [
@@ -67,6 +70,8 @@ export function PaintApp() {
 }
 
 function TopBar({ isMobile }: { isMobile: boolean }) {
+  const projectName = usePaintStore((s) => s.currentProjectName);
+  const setProjectName = usePaintStore((s) => s.setProjectName);
   const undo = usePaintStore((s) => s.undo);
   const redo = usePaintStore((s) => s.redo);
   const clearAll = usePaintStore((s) => s.clearAll);
@@ -76,8 +81,16 @@ function TopBar({ isMobile }: { isMobile: boolean }) {
   const fileRef = useRef<HTMLInputElement>(null);
   const addImage = usePaintStore((s) => s.addImage);
   const transform = usePaintStore((s) => s.transform);
+  const [draftName, setDraftName] = useState(projectName);
+
+  useEffect(() => {
+    setDraftName(projectName);
+  }, [projectName]);
 
   const onImport = () => fileRef.current?.click();
+  const commitProjectName = () => {
+    setProjectName(draftName.trim() || DEFAULT_PROJECT_NAME);
+  };
 
   const handleFile = async (file: File) => {
     const src = await fileToDataUrl(file);
@@ -113,7 +126,7 @@ function TopBar({ isMobile }: { isMobile: boolean }) {
       initial={{ y: -30, opacity: 0 }}
       animate={{ y: 0, opacity: 1 }}
       transition={{ type: "spring", stiffness: 220, damping: 24 }}
-      className="pointer-events-none absolute inset-x-0 top-0 z-40 p-3 sm:p-4"
+      className="pointer-events-none absolute inset-x-0 top-0 z-40 py-3 sm:py-4"
     >
       <div
         className={`flex ${isMobile ? "items-center justify-between gap-2" : "flex-col gap-2 sm:flex-row sm:items-center sm:justify-between"}`}
@@ -121,27 +134,66 @@ function TopBar({ isMobile }: { isMobile: boolean }) {
         <div
           className={`pointer-events-auto flex min-w-0 items-center gap-3 border border-slate-100 bg-paint-panel/80 shadow-soft backdrop-blur-md ${
             isMobile
-              ? "max-w-[10.5rem] rounded-full px-3 py-2"
-              : "rounded-2xl px-3 py-2 sm:px-4"
+              ? "max-w-[15rem] rounded-full px-3 py-2"
+              : "max-w-[min(100%,36rem)] rounded-2xl px-3 py-2 sm:px-4"
           }`}
         >
-          <div className="flex size-8 shrink-0 items-center justify-center rounded-xl bg-brand-pink font-display text-xl font-bold text-pink-500">
+          <Link
+            to="/"
+            aria-label="Back to projects"
+            className="flex size-8 shrink-0 items-center justify-center rounded-full text-slate-400 transition-colors hover:bg-slate-50 hover:text-slate-600"
+          >
+            <ChevronLeft className="size-4" />
+          </Link>
+          <div className="flex size-8 shrink-0 items-center justify-center rounded-xl bg-brand-pink text-xl font-bold text-pink-500">
             P
           </div>
-          <span className={`truncate font-display font-semibold tracking-tight ${isMobile ? "text-lg" : ""}`}>
+          <span
+            className={`shrink-0 truncate font-semibold tracking-tight ${isMobile ? "max-w-[5.25rem] text-base" : ""}`}
+          >
             PastelPaint
           </span>
-          {!isMobile && <div className="mx-1 hidden h-4 w-px bg-slate-200 sm:block" />}
-          {!isMobile && <span className="hidden text-sm text-slate-400 sm:inline">Untitled sketch</span>}
+          <div className="h-4 w-px shrink-0 bg-slate-200" />
+          <input
+            value={draftName}
+            onChange={(e) => setDraftName(e.target.value)}
+            onBlur={commitProjectName}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.currentTarget.blur();
+              }
+              if (e.key === "Escape") {
+                setDraftName(projectName);
+                e.currentTarget.blur();
+              }
+            }}
+            aria-label="Project name"
+            className={`min-w-0 bg-transparent text-slate-400 outline-none placeholder:text-slate-300 ${
+              isMobile ? "w-24 text-sm" : "w-52 text-base"
+            }`}
+            placeholder={DEFAULT_PROJECT_NAME}
+          />
         </div>
 
-        <div className={`pointer-events-auto flex ${isMobile ? "shrink-0" : "w-full items-center justify-between gap-2 sm:w-auto sm:justify-end"}`}>
+        <div
+          className={`pointer-events-auto flex ${isMobile ? "shrink-0" : "w-full items-center justify-between gap-2 sm:w-auto sm:justify-end"}`}
+        >
           {isMobile ? (
             <div className="flex items-center rounded-full border border-slate-100 bg-paint-panel/85 p-1 shadow-soft backdrop-blur-md">
-              <IconBtn label="Undo" disabled={!canUndo} onClick={undo} className="size-9 rounded-full">
+              <IconBtn
+                label="Undo"
+                disabled={!canUndo}
+                onClick={undo}
+                className="size-9 rounded-full"
+              >
                 <Undo2 className="size-4" />
               </IconBtn>
-              <IconBtn label="Redo" disabled={!canRedo} onClick={redo} className="size-9 rounded-full">
+              <IconBtn
+                label="Redo"
+                disabled={!canRedo}
+                onClick={redo}
+                className="size-9 rounded-full"
+              >
                 <Redo2 className="size-4" />
               </IconBtn>
               <IconBtn
@@ -687,16 +739,14 @@ function WelcomeCard({ isMobile }: { isMobile: boolean }) {
               <Sparkles className="size-7 text-white" />
             </div>
             <h1
-              className={`mb-2 font-display font-semibold text-slate-800 ${
+              className={`mb-2 font-semibold text-slate-800 ${
                 isMobile ? "text-xl leading-tight" : "text-2xl"
               }`}
             >
               Start creating something cute
             </h1>
             <p
-              className={`mb-6 text-slate-500 ${
-                isMobile ? "text-xs leading-relaxed" : "text-sm"
-              }`}
+              className={`mb-6 text-slate-500 ${isMobile ? "text-xs leading-relaxed" : "text-sm"}`}
             >
               Draw with one finger. Two fingers to pan, pinch to zoom. Or import a photo to turn it
               into a coloring page.
