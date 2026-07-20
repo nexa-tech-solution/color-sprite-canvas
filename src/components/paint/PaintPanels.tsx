@@ -4,7 +4,7 @@ import { Copy, RotateCcw, Sparkles, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { imageToColoringPage } from "@/lib/coloringPage";
 import { COLORING_PAGES, coloringPageToSrc, type ColoringPage } from "@/lib/coloringPages";
-import { STICKERS, type Sticker, stickerToDataUrl } from "@/lib/stickers";
+import { getStickerDimensions, STICKERS, type Sticker, stickerToSrc } from "@/lib/stickers";
 import { usePaintStore } from "@/stores/paintStore";
 import { buildColoringBookBackground, stopControlEvent } from "./paintUtils";
 
@@ -22,12 +22,13 @@ export function StickerShelf({
   const transform = usePaintStore((state) => state.transform);
   const categories: Sticker["category"][] = ["Cute", "Nature", "Play"];
 
-  const addSticker = (sticker: Sticker) => {
-    const src = stickerToDataUrl(sticker);
-    const maxStickerWidth = isMobile ? 132 : 156;
-    const scale = Math.min(1, maxStickerWidth / sticker.width);
-    const width = Math.round(sticker.width * scale);
-    const height = Math.round(sticker.height * scale);
+  const addSticker = async (sticker: Sticker) => {
+    const src = stickerToSrc(sticker);
+    const dimensions = await getStickerDimensions(sticker);
+    const maxStickerSize = isMobile ? 132 : 156;
+    const scale = Math.min(1, maxStickerSize / Math.max(dimensions.width, dimensions.height));
+    const width = Math.round(dimensions.width * scale);
+    const height = Math.round(dimensions.height * scale);
     const centerX = (window.innerWidth / 2 - transform.x) / transform.scale;
     const centerY = (window.innerHeight / 2 - transform.y) / transform.scale;
 
@@ -97,7 +98,7 @@ export function StickerShelf({
                         className="flex aspect-square cursor-pointer items-center justify-center rounded-2xl border border-slate-100 bg-white p-2 shadow-[0_8px_18px_-15px_rgba(15,23,42,0.7)] transition-transform hover:-translate-y-0.5 hover:bg-slate-50 active:scale-95"
                       >
                         <img
-                          src={stickerToDataUrl(sticker)}
+                          src={stickerToSrc(sticker)}
                           alt=""
                           className="max-h-full max-w-full object-contain"
                           draggable={false}
