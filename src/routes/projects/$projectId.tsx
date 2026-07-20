@@ -1,7 +1,8 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { lazy, Suspense, useEffect, useState } from "react";
 import { Toaster } from "sonner";
-import { getProject, saveProject } from "@/lib/projects";
+import { calculateProjectProgress } from "@/lib/projectProgress";
+import { getProject, saveProject, updateProjectProgress } from "@/lib/projects";
 import { projectFromState, usePaintStore } from "@/stores/paintStore";
 
 const PaintApp = lazy(() =>
@@ -34,6 +35,10 @@ function ProjectEditor() {
 
     usePaintStore.getState().loadProject(project);
     setReady(true);
+
+    void calculateProjectProgress(project).then((progress) => {
+      updateProjectProgress(project.id, progress, project.updatedAt);
+    });
   }, [mounted, navigate, projectId]);
 
   useEffect(() => {
@@ -57,7 +62,10 @@ function ProjectEditor() {
       window.clearTimeout(timeoutId);
       const snapshot = projectFromState(usePaintStore.getState());
       if (snapshot && snapshot.id === projectId) {
-        saveProject(snapshot);
+        const savedProject = saveProject(snapshot);
+        void calculateProjectProgress(savedProject).then((progress) => {
+          updateProjectProgress(savedProject.id, progress, savedProject.updatedAt);
+        });
       }
       unsubscribe();
     };

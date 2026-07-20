@@ -34,6 +34,8 @@ export interface Transform {
 export interface PaintProject {
   id: string;
   name: string;
+  isFavorite?: boolean;
+  progress?: number;
   createdAt: string;
   updatedAt: string;
   transform: Transform;
@@ -108,6 +110,8 @@ export function makeBlankProject(overrides: Partial<PaintProject> = {}): PaintPr
   return {
     id: overrides.id ?? makeProjectId(),
     name: normalizeProjectName(overrides.name),
+    isFavorite: overrides.isFavorite ?? false,
+    progress: overrides.progress ?? 0,
     createdAt: overrides.createdAt ?? now,
     updatedAt: overrides.updatedAt ?? now,
     transform: overrides.transform ?? { ...initialTransform },
@@ -125,14 +129,16 @@ export function getProject(projectId: string) {
 }
 
 export function saveProject(project: PaintProject) {
+  const projects = readProjects();
+  const index = projects.findIndex((entry) => entry.id === project.id);
+  const existing = index >= 0 ? projects[index] : null;
   const normalized: PaintProject = {
     ...project,
+    isFavorite: project.isFavorite ?? existing?.isFavorite ?? false,
+    progress: project.progress ?? existing?.progress ?? 0,
     name: normalizeProjectName(project.name),
     updatedAt: project.updatedAt || new Date().toISOString(),
   };
-
-  const projects = readProjects();
-  const index = projects.findIndex((entry) => entry.id === normalized.id);
 
   if (index >= 0) {
     projects[index] = normalized;
@@ -151,4 +157,35 @@ export function createProject(overrides: Partial<PaintProject> = {}) {
 export function deleteProject(projectId: string) {
   const nextProjects = readProjects().filter((project) => project.id !== projectId);
   writeProjects(nextProjects);
+}
+
+export function toggleProjectFavorite(projectId: string) {
+  const projects = readProjects();
+  const index = projects.findIndex((project) => project.id === projectId);
+
+  if (index < 0) return false;
+
+  const isFavorite = !projects[index].isFavorite;
+  projects[index] = { ...projects[index], isFavorite };
+  writeProjects(projects);
+
+  return isFavorite;
+}
+
+export function updateProjectProgress(
+  projectId: string,
+  progress: number,
+  expectedUpdatedAt?: string,
+) {
+  const projects = readProjects();
+  const index = projects.findIndex((project) => project.id === projectId);
+
+  if (index < 0) return null;
+  if (expectedUpdatedAt && projects[index].updatedAt !== expectedUpdatedAt) return null;
+
+  const normalizedProgress = Math.min(100, Math.max(0, Math.round(progress)));
+  projects[index] = { ...projects[index], progress: normalizedProgress };
+  writeProjects(projects);
+
+  return projects[index];
 }
