@@ -1,5 +1,5 @@
 import { Users } from "lucide-react";
-import littleArtistLogo from "@/assets/core/little-artist.png";
+import appLogo from "@/assets/logo/logo.png";
 import { sidebarItems, type GallerySection } from "./constants";
 
 type GalleryNavigationProps = {
@@ -13,8 +13,8 @@ export function GallerySidebar({ activeSection, onSectionChange }: GalleryNaviga
       <div className="flex h-full min-h-0 flex-col overflow-y-auto overscroll-contain rounded-[36px] border border-white/90 bg-white/88 p-4 shadow-soft [scrollbar-gutter:stable] backdrop-blur-xl">
         <div className="text-center">
           <img
-            src={littleArtistLogo}
-            alt="Little Artists Club"
+            src={appLogo}
+            alt="Coloring logo"
             className="mx-auto h-auto w-full max-w-[7.75rem] object-contain sm:max-w-[8.5rem]"
             draggable={false}
           />

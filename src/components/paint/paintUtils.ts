@@ -1,6 +1,7 @@
 import { toast } from "sonner";
 import { coloringPageToSrc, type ColoringPage } from "@/lib/coloringPages";
 import { usePaintStore, type CanvasImage } from "@/stores/paintStore";
+import { PAINT_ACTIONS } from "./paintConstants";
 
 export function stopControlEvent(event: { stopPropagation: () => void }) {
   event.stopPropagation();
@@ -226,7 +227,7 @@ export async function exportCanvas() {
   const url = canvas.toDataURL("image/png");
   const anchor = document.createElement("a");
   anchor.href = url;
-  anchor.download = `tiny-color-club-${Date.now()}.png`;
+  anchor.download = `${PAINT_ACTIONS.exportFilePrefix}-${Date.now()}.png`;
   anchor.click();
   toast.success("Exported!");
 }

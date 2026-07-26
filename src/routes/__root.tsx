@@ -77,14 +77,14 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Tiny Color Club | A cozy coloring book for kids" },
+      { title: "Coloring | A cozy coloring book for kids" },
       {
         name: "description",
         content:
           "A cozy coloring book for kids. Pick a page, color inside the picture, and turn your own photos into printable-style coloring sheets.",
       },
-      { name: "author", content: "Tiny Color Club" },
-      { property: "og:title", content: "Tiny Color Club | A cozy coloring book for kids" },
+      { name: "author", content: "Coloring" },
+      { property: "og:title", content: "Coloring | A cozy coloring book for kids" },
       {
         property: "og:description",
         content:
@@ -98,8 +98,9 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         rel: "stylesheet",
         href: appCss,
       },
-      { rel: "icon", href: "/tiny-color-club-icon.png", type: "image/png" },
-      { rel: "apple-touch-icon", href: "/tiny-color-club-icon.png" },
+      { rel: "icon", href: "/favicon.png?v=20260726d", type: "image/png" },
+      { rel: "shortcut icon", href: "/favicon.ico?v=20260726d" },
+      { rel: "apple-touch-icon", href: "/favicon.png?v=20260726d" },
       { rel: "preconnect", href: "https://fonts.googleapis.com" },
       { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
       {

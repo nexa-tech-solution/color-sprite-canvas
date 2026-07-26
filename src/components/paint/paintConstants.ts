@@ -41,7 +41,7 @@ export const PAINT_ACTIONS = {
   pageShelfTitle: "Coloring book",
   pageReadyMessage: "is ready to color",
   importSuccessMessage: "Picture added as your coloring page background",
-  exportFilePrefix: "tiny-color-club",
+  exportFilePrefix: "coloring",
   defaultProjectNamePrefix: "My coloring page",
 } as const;
 
