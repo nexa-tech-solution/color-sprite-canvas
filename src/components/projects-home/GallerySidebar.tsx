@@ -37,19 +37,14 @@ export function GallerySidebar({ activeSection, onSectionChange }: GalleryNaviga
               }`}
             >
               <span className="flex size-10 shrink-0 items-center justify-center">
-                <img
-                  src={item.image}
-                  alt=""
-                  className="size-9 object-contain"
-                  draggable={false}
-                />
+                <img src={item.image} alt="" className="size-9 object-contain" draggable={false} />
               </span>
               <span className="text-sm font-semibold sm:text-[15px]">{item.label}</span>
             </button>
           ))}
         </nav>
 
-        <div className="mt-auto w-full text-center">
+        {/* <div className="mt-auto w-full text-center">
           <button
             type="button"
             className="inline-flex items-center gap-2 rounded-full bg-[#f3f0ff] px-4 py-2 text-xs font-semibold text-[#8b74ff] sm:text-sm"
@@ -57,7 +52,7 @@ export function GallerySidebar({ activeSection, onSectionChange }: GalleryNaviga
             <Users className="size-4" />
             Parent's zone
           </button>
-        </div>
+        </div> */}
       </div>
     </aside>
   );
@@ -90,9 +85,7 @@ export function BottomTabNav({ activeSection, onSectionChange }: GalleryNavigati
                 draggable={false}
               />
             </span>
-            <span className="text-[10px] font-semibold leading-tight sm:text-xs">
-              {item.label}
-            </span>
+            <span className="text-[10px] font-semibold leading-tight sm:text-xs">{item.label}</span>
           </button>
         ))}
       </div>

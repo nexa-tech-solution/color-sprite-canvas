@@ -177,8 +177,8 @@ export function matchesFilter(project: PaintProject, filter: ProjectFilter) {
       return Number.isFinite(updatedAt) && updatedAt >= threeDaysAgo;
     case "pages":
       return metrics.coloringPageCount > 0 || metrics.importedImageCount > 0;
-    case "stickers":
-      return metrics.stickerCount > 0;
+    case "favorites":
+      return project.isFavorite;
     case "finished":
       return metrics.progress >= 90;
     case "all":

@@ -12,7 +12,7 @@ export function HeroBanner({ onCreateProject }: { onCreateProject: () => void })
           draggable={false}
         />
 
-        <p className="-mt-4 max-w-[640px] text-[11px] leading-relaxed text-[#5f6894] sm:-mt-10 sm:max-w-[720px] sm:text-base md:text-lg lg:max-w-[800px] lg:text-xl">
+        <p className="-mt-4 max-w-[640px] px-3 text-sm leading-7 text-[#5f6894] sm:-mt-10 sm:max-w-[720px] sm:px-0 sm:text-base md:text-lg lg:max-w-[800px] lg:text-xl">
           Start something new or continue your masterpiece. Every project stays ready for the next
           little artist moment.
         </p>

@@ -22,6 +22,7 @@ export interface CanvasImage {
   y: number;
   width: number;
   height: number;
+  rotation?: number;
   opacity: number;
 }
 

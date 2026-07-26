@@ -171,7 +171,7 @@ function getFocusedTransform(image: CanvasImage, viewport: Viewport) {
 function snap(state: PaintState): Snapshot {
   return {
     strokes: state.strokes.map((s) => ({ ...s, points: [...s.points] })),
-    images: state.images.map((i) => ({ ...i })),
+    images: state.images.map((i) => ({ ...i, rotation: i.rotation ?? 0 })),
   };
 }
 
@@ -188,7 +188,7 @@ export function projectFromState(state: PaintState): PaintProject | null {
       ...stroke,
       points: stroke.points.map((point) => ({ ...point })),
     })),
-    images: state.images.map((image) => ({ ...image })),
+    images: state.images.map((image) => ({ ...image, rotation: image.rotation ?? 0 })),
   };
 }
 
@@ -233,7 +233,7 @@ export const usePaintStore = create<PaintState>((set, get) => ({
         ...stroke,
         points: stroke.points.map((point) => ({ ...point })),
       })),
-      images: project.images.map((image) => ({ ...image })),
+      images: project.images.map((image) => ({ ...image, rotation: image.rotation ?? 0 })),
       selectedImageId: null,
       showWelcome: project.strokes.length === 0 && project.images.length === 0,
       history: [],
@@ -293,7 +293,7 @@ export const usePaintStore = create<PaintState>((set, get) => ({
     }),
   setBackgroundImage: (image, options) =>
     set((s) => {
-      const backgroundImage = { ...image, kind: image.kind ?? "image" };
+      const backgroundImage = { ...image, kind: image.kind ?? "image", rotation: 0 };
       const images = [
         backgroundImage,
         ...s.images.filter((existingImage) => existingImage.kind === "sticker"),
@@ -331,7 +331,7 @@ export const usePaintStore = create<PaintState>((set, get) => ({
     set((s) => {
       const next = {
         ...s,
-        images: [...s.images, img],
+        images: [...s.images, { ...img, rotation: img.rotation ?? 0 }],
         selectedImageId: img.id,
         showWelcome: false,
       };

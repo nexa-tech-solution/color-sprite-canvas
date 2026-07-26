@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { usePaintStore, type Point, type CanvasImage } from "@/stores/paintStore";
 
 type ResizeHandle = "nw" | "ne" | "sw" | "se";
+type SelectionHandle = ResizeHandle | "rotate";
 
 // Cache HTMLImageElement instances by src
 const imgCache = new Map<string, HTMLImageElement>();
@@ -24,24 +25,102 @@ function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
 }
 
+function getImageRotation(image: CanvasImage) {
+  return image.rotation ?? 0;
+}
+
+function getImageCenter(image: CanvasImage) {
+  return {
+    x: image.x + image.width / 2,
+    y: image.y + image.height / 2,
+  };
+}
+
+function rotateVector(x: number, y: number, angle: number) {
+  const cos = Math.cos(angle);
+  const sin = Math.sin(angle);
+
+  return {
+    x: x * cos - y * sin,
+    y: x * sin + y * cos,
+  };
+}
+
+function toImageLocal(point: Point, image: CanvasImage) {
+  const center = getImageCenter(image);
+  return rotateVector(point.x - center.x, point.y - center.y, -getImageRotation(image));
+}
+
+function getStickerCorners(image: CanvasImage) {
+  const center = getImageCenter(image);
+  const halfWidth = image.width / 2;
+  const halfHeight = image.height / 2;
+  const rotation = getImageRotation(image);
+
+  return {
+    nw: (() => {
+      const offset = rotateVector(-halfWidth, -halfHeight, rotation);
+      return { x: center.x + offset.x, y: center.y + offset.y };
+    })(),
+    ne: (() => {
+      const offset = rotateVector(halfWidth, -halfHeight, rotation);
+      return { x: center.x + offset.x, y: center.y + offset.y };
+    })(),
+    sw: (() => {
+      const offset = rotateVector(-halfWidth, halfHeight, rotation);
+      return { x: center.x + offset.x, y: center.y + offset.y };
+    })(),
+    se: (() => {
+      const offset = rotateVector(halfWidth, halfHeight, rotation);
+      return { x: center.x + offset.x, y: center.y + offset.y };
+    })(),
+  };
+}
+
+function getRotateHandlePosition(image: CanvasImage, distance: number) {
+  const center = getImageCenter(image);
+  const offset = rotateVector(0, -(image.height / 2 + distance), getImageRotation(image));
+  return { x: center.x + offset.x, y: center.y + offset.y };
+}
+
 function containImageWithinBackground(image: CanvasImage, background: CanvasImage | null) {
   if (!background || image.kind !== "sticker") return image;
 
+  const corners = Object.values(getStickerCorners(image));
+  const minX = Math.min(...corners.map((corner) => corner.x));
+  const maxX = Math.max(...corners.map((corner) => corner.x));
+  const minY = Math.min(...corners.map((corner) => corner.y));
+  const maxY = Math.max(...corners.map((corner) => corner.y));
+  const dx =
+    minX < background.x
+      ? background.x - minX
+      : maxX > background.x + background.width
+        ? background.x + background.width - maxX
+        : 0;
+  const dy =
+    minY < background.y
+      ? background.y - minY
+      : maxY > background.y + background.height
+        ? background.y + background.height - maxY
+        : 0;
+
   return {
     ...image,
-    x: clamp(image.x, background.x, background.x + background.width - image.width),
-    y: clamp(image.y, background.y, background.y + background.height - image.height),
+    x: image.x + dx,
+    y: image.y + dy,
   };
 }
 
 function pointInImage(point: Point, image: CanvasImage | null) {
   if (!image) return true;
 
+  const local = toImageLocal(point, image);
+
   return (
-    point.x >= image.x &&
-    point.x <= image.x + image.width &&
-    point.y >= image.y &&
-    point.y <= image.y + image.height
+    local.x >= -image.width / 2 &&
+    local.x <= image.width / 2 &&
+    local.y >= -image.height / 2 &&
+    local.y <= image.height / 2
   );
 }
 
@@ -69,15 +148,23 @@ export function CanvasSurface() {
   } | null>(null);
   const resizeImgRef = useRef<{
     id: string;
-    handle: ResizeHandle;
-    anchorX: number;
-    anchorY: number;
+    centerX: number;
+    centerY: number;
     startWidth: number;
     startHeight: number;
+    rotation: number;
+    historyCaptured: boolean;
+  } | null>(null);
+  const rotateImgRef = useRef<{
+    id: string;
+    centerX: number;
+    centerY: number;
+    startRotation: number;
+    startPointerAngle: number;
     historyCaptured: boolean;
   } | null>(null);
   const spaceRef = useRef(false);
-  const [hoveredHandle, setHoveredHandle] = useState<ResizeHandle | null>(null);
+  const [hoveredHandle, setHoveredHandle] = useState<SelectionHandle | null>(null);
   const [size, setSize] = useState({ w: 0, h: 0 });
 
   const s = usePaintStore();
@@ -161,7 +248,17 @@ export function CanvasSurface() {
         return;
       }
       ctx.globalAlpha = im.opacity;
-      ctx.drawImage(img, im.x, im.y, im.width, im.height);
+      const rotation = getImageRotation(im);
+      if (rotation === 0) {
+        ctx.drawImage(img, im.x, im.y, im.width, im.height);
+      } else {
+        const center = getImageCenter(im);
+        ctx.save();
+        ctx.translate(center.x, center.y);
+        ctx.rotate(rotation);
+        ctx.drawImage(img, -im.width / 2, -im.height / 2, im.width, im.height);
+        ctx.restore();
+      }
       ctx.globalAlpha = 1;
     };
 
@@ -244,13 +341,29 @@ export function CanvasSurface() {
     if (selectedImageId && tool === "select") {
       const im = images.find((i) => i.id === selectedImageId);
       if (im?.kind === "sticker") {
+        const corners = getStickerCorners(im);
+        const rotateHandle = getRotateHandlePosition(im, 28 / transform.scale);
+        const topCenter = rotateVector(0, -im.height / 2, getImageRotation(im));
+        const center = getImageCenter(im);
+
         ctx.save();
         ctx.strokeStyle = "#ec4899";
         ctx.lineWidth = 2 / transform.scale;
         ctx.setLineDash([8 / transform.scale, 6 / transform.scale]);
-        ctx.strokeRect(im.x, im.y, im.width, im.height);
+        ctx.beginPath();
+        ctx.moveTo(corners.nw.x, corners.nw.y);
+        ctx.lineTo(corners.ne.x, corners.ne.y);
+        ctx.lineTo(corners.se.x, corners.se.y);
+        ctx.lineTo(corners.sw.x, corners.sw.y);
+        ctx.closePath();
+        ctx.stroke();
         ctx.setLineDash([]);
-        // handles
+
+        ctx.beginPath();
+        ctx.moveTo(center.x + topCenter.x, center.y + topCenter.y);
+        ctx.lineTo(rotateHandle.x, rotateHandle.y);
+        ctx.stroke();
+
         const hs = 8 / transform.scale;
         const drawHandle = (x: number, y: number) => {
           ctx.fillStyle = "#fff";
@@ -261,10 +374,11 @@ export function CanvasSurface() {
           ctx.fill();
           ctx.stroke();
         };
-        drawHandle(im.x, im.y);
-        drawHandle(im.x + im.width, im.y);
-        drawHandle(im.x, im.y + im.height);
-        drawHandle(im.x + im.width, im.y + im.height);
+        drawHandle(corners.nw.x, corners.nw.y);
+        drawHandle(corners.ne.x, corners.ne.y);
+        drawHandle(corners.sw.x, corners.sw.y);
+        drawHandle(corners.se.x, corners.se.y);
+        drawHandle(rotateHandle.x, rotateHandle.y);
         ctx.restore();
       }
     }
@@ -303,13 +417,12 @@ export function CanvasSurface() {
     const imgs = usePaintStore.getState().images;
     for (let i = imgs.length - 1; i >= 0; i--) {
       const im = imgs[i];
-      if (p.x >= im.x && p.x <= im.x + im.width && p.y >= im.y && p.y <= im.y + im.height)
-        return im;
+      if (pointInImage(p, im)) return im;
     }
     return undefined;
   }
 
-  function hitResizeHandle(p: Point): { image: CanvasImage; handle: ResizeHandle } | null {
+  function hitSelectionHandle(p: Point): { image: CanvasImage; handle: SelectionHandle } | null {
     const st = usePaintStore.getState();
     if (!st.selectedImageId || st.tool !== "select") return null;
 
@@ -317,11 +430,14 @@ export function CanvasSurface() {
     if (!image || image.kind !== "sticker") return null;
 
     const radius = Math.max(14 / st.transform.scale, 8);
-    const handles: Array<{ handle: ResizeHandle; x: number; y: number }> = [
-      { handle: "nw", x: image.x, y: image.y },
-      { handle: "ne", x: image.x + image.width, y: image.y },
-      { handle: "sw", x: image.x, y: image.y + image.height },
-      { handle: "se", x: image.x + image.width, y: image.y + image.height },
+    const corners = getStickerCorners(image);
+    const rotateHandle = getRotateHandlePosition(image, 28 / st.transform.scale);
+    const handles: Array<{ handle: SelectionHandle; x: number; y: number }> = [
+      { handle: "nw", x: corners.nw.x, y: corners.nw.y },
+      { handle: "ne", x: corners.ne.x, y: corners.ne.y },
+      { handle: "sw", x: corners.sw.x, y: corners.sw.y },
+      { handle: "se", x: corners.se.x, y: corners.se.y },
+      { handle: "rotate", x: rotateHandle.x, y: rotateHandle.y },
     ];
 
     for (const handle of handles) {
@@ -343,18 +459,32 @@ export function CanvasSurface() {
     }
     if (st.tool === "select") {
       const wp = screenToWorld(e.clientX, e.clientY);
-      const resizeHit = hitResizeHandle(wp);
+      const selectionHit = hitSelectionHandle(wp);
 
-      if (resizeHit) {
-        const { image, handle } = resizeHit;
+      if (selectionHit) {
+        const { image, handle } = selectionHit;
         st.selectImage(image.id);
+        const center = getImageCenter(image);
+
+        if (handle === "rotate") {
+          rotateImgRef.current = {
+            id: image.id,
+            centerX: center.x,
+            centerY: center.y,
+            startRotation: getImageRotation(image),
+            startPointerAngle: Math.atan2(wp.y - center.y, wp.x - center.x),
+            historyCaptured: false,
+          };
+          return;
+        }
+
         resizeImgRef.current = {
           id: image.id,
-          handle,
-          anchorX: handle.includes("w") ? image.x + image.width : image.x,
-          anchorY: handle.includes("n") ? image.y + image.height : image.y,
+          centerX: center.x,
+          centerY: center.y,
           startWidth: image.width,
           startHeight: image.height,
+          rotation: getImageRotation(image),
           historyCaptured: false,
         };
         return;
@@ -411,9 +541,15 @@ export function CanvasSurface() {
 
   const onPointerMove = (e: React.PointerEvent) => {
     const st = usePaintStore.getState();
-    if (st.tool === "select" && !dragImgRef.current && !resizeImgRef.current && !panRef.current) {
+    if (
+      st.tool === "select" &&
+      !dragImgRef.current &&
+      !resizeImgRef.current &&
+      !rotateImgRef.current &&
+      !panRef.current
+    ) {
       const wp = screenToWorld(e.clientX, e.clientY);
-      setHoveredHandle(hitResizeHandle(wp)?.handle ?? null);
+      setHoveredHandle(hitSelectionHandle(wp)?.handle ?? null);
     }
     if (panRef.current) {
       const dx = e.clientX - panRef.current.x;
@@ -422,26 +558,51 @@ export function CanvasSurface() {
       st.panBy(dx, dy);
       return;
     }
+    if (rotateImgRef.current) {
+      const wp = screenToWorld(e.clientX, e.clientY);
+      const rotate = rotateImgRef.current;
+      const currentImage = st.images.find((image) => image.id === rotate.id);
+      if (!currentImage) return;
+
+      if (!rotate.historyCaptured) {
+        st.pushHistory();
+        rotate.historyCaptured = true;
+      }
+
+      const pointerAngle = Math.atan2(wp.y - rotate.centerY, wp.x - rotate.centerX);
+      const nextImage = containImageWithinBackground(
+        {
+          ...currentImage,
+          rotation: rotate.startRotation + (pointerAngle - rotate.startPointerAngle),
+        },
+        getBackgroundImage(st.images),
+      );
+      st.updateImage(rotate.id, {
+        x: nextImage.x,
+        y: nextImage.y,
+        rotation: nextImage.rotation,
+      });
+      return;
+    }
     if (resizeImgRef.current) {
       const wp = screenToWorld(e.clientX, e.clientY);
       const resize = resizeImgRef.current;
       const currentImage = st.images.find((image) => image.id === resize.id);
       if (!currentImage) return;
       const background = getBackgroundImage(st.images);
-      const rawWidth = Math.abs(wp.x - resize.anchorX);
-      const rawHeight = Math.abs(wp.y - resize.anchorY);
+      const local = rotateVector(wp.x - resize.centerX, wp.y - resize.centerY, -resize.rotation);
       const minScale = Math.max(0.08, 24 / resize.startWidth, 24 / resize.startHeight);
       const scale = Math.max(
         minScale,
-        rawWidth / resize.startWidth,
-        rawHeight / resize.startHeight,
+        Math.abs(local.x) / Math.max(1, resize.startWidth / 2),
+        Math.abs(local.y) / Math.max(1, resize.startHeight / 2),
       );
       const width = resize.startWidth * scale;
       const height = resize.startHeight * scale;
-      const x = resize.handle.includes("w") ? resize.anchorX - width : resize.anchorX;
-      const y = resize.handle.includes("n") ? resize.anchorY - height : resize.anchorY;
+      const x = resize.centerX - width / 2;
+      const y = resize.centerY - height / 2;
       const nextImage = containImageWithinBackground(
-        { ...currentImage, x, y, width, height },
+        { ...currentImage, x, y, width, height, rotation: resize.rotation },
         background,
       );
 
@@ -495,6 +656,7 @@ export function CanvasSurface() {
     }
     dragImgRef.current = null;
     resizeImgRef.current = null;
+    rotateImgRef.current = null;
     panRef.current = null;
   };
 
@@ -518,7 +680,9 @@ export function CanvasSurface() {
           ? "nwse-resize"
           : hoveredHandle === "ne" || hoveredHandle === "sw"
             ? "nesw-resize"
-            : "default"
+            : hoveredHandle === "rotate"
+              ? "grab"
+              : "default"
         : "crosshair";
 
   return (

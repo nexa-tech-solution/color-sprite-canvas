@@ -4,7 +4,7 @@ import homeIcon from "@/assets/core/home.png";
 import stickersIcon from "@/assets/core/heart.png";
 import templatesIcon from "@/assets/core/template.png";
 
-export type ProjectFilter = "all" | "recent" | "pages" | "stickers" | "finished";
+export type ProjectFilter = "all" | "recent" | "pages" | "favorites" | "finished";
 export type ProjectSort = "newest" | "oldest" | "name-asc" | "name-desc";
 export type GallerySection = "gallery" | "favorites";
 
@@ -20,7 +20,7 @@ export const filterOptions = [
   { id: "all", label: "All" },
   { id: "recent", label: "Recent" },
   { id: "pages", label: "Pages" },
-  { id: "stickers", label: "Stickers" },
+  { id: "favorites", label: "Favorites" },
   { id: "finished", label: "Finished" },
 ] as const;
 

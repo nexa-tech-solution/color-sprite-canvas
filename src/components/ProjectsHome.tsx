@@ -9,7 +9,6 @@ import {
 import background1 from "@/assets/backgound/background1.png";
 import type { GallerySection, ProjectFilter, ProjectSort } from "./projects-home/constants";
 import { matchesFilter, sortProjects } from "./projects-home/utils";
-import { BottomTabNav, GallerySidebar } from "./projects-home/GallerySidebar";
 import { HeroBanner } from "./projects-home/HeroBanner";
 import { FilterStrip } from "./projects-home/FilterStrip";
 import { EmptyLibrary } from "./projects-home/EmptyLibrary";
@@ -21,7 +20,7 @@ export function ProjectsHome() {
   const navigate = useNavigate();
   const [mounted, setMounted] = useState(false);
   const [projects, setProjects] = useState<PaintProject[]>([]);
-  const [activeSection, setActiveSection] = useState<GallerySection>("gallery");
+  const [activeSection] = useState<GallerySection>("gallery");
   const [activeFilter, setActiveFilter] = useState<ProjectFilter>("all");
   const [activeSort, setActiveSort] = useState<ProjectSort>("newest");
 
@@ -66,11 +65,6 @@ export function ProjectsHome() {
     [activeFilter, activeSection, activeSort, projects],
   );
 
-  const handleSectionChange = (section: GallerySection) => {
-    setActiveSection(section);
-    setActiveFilter("all");
-  };
-
   if (!mounted) {
     return (
       <div className="fixed inset-0 flex items-center justify-center bg-[#fbfcfe] text-slate-500">
@@ -86,15 +80,11 @@ export function ProjectsHome() {
         style={{ backgroundImage: `url(${background1})` }}
       />
 
-      <div className="relative mx-auto max-w-[1560px] px-3 py-3 sm:px-4 lg:px-5">
-        <div className="grid min-w-0 gap-5 xl:grid-cols-[220px_minmax(0,1fr)]">
-          <GallerySidebar activeSection={activeSection} onSectionChange={handleSectionChange} />
+      <div className="relative mx-auto max-w-[1560px] px-3 py-3 sm:px-4 lg:px-3 xl:px-4">
+        <div className="min-w-0">
+          {/* <GallerySidebar activeSection={activeSection} onSectionChange={handleSectionChange} /> */}
 
-          <div
-            className={`min-w-0 ${
-              projects.length > 0 ? "space-y-5 pb-28" : "space-y-5 pb-24 xl:pb-0"
-            }`}
-          >
+          <div className="min-w-0 space-y-5 px-2 pb-32 sm:px-3 sm:pb-36 lg:px-8">
             <HeroBanner onCreateProject={handleCreateProject} />
 
             {projects.length === 0 ? (
@@ -110,7 +100,7 @@ export function ProjectsHome() {
                   onSortChange={setActiveSort}
                 />
 
-                <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5">
+                <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-5">
                   {filteredProjects.map((project) => (
                     <ProjectCard key={project.id} project={project} />
                   ))}
@@ -119,7 +109,7 @@ export function ProjectsHome() {
                 {filteredProjects.length === 0 && (
                   <EmptyFilterState
                     activeFilter={activeFilter}
-                    showingFavorites={activeSection === "favorites"}
+                    showingFavorites={activeSection === "favorites" || activeFilter === "favorites"}
                   />
                 )}
               </>
@@ -128,7 +118,7 @@ export function ProjectsHome() {
         </div>
       </div>
 
-      <BottomTabNav activeSection={activeSection} onSectionChange={handleSectionChange} />
+      {/* <BottomTabNav activeSection={activeSection} onSectionChange={handleSectionChange} /> */}
     </main>
   );
 }

@@ -22,7 +22,7 @@ import {
   ChevronDown,
   Clock3,
   LayoutGrid,
-  Sparkles,
+  Star,
 } from "lucide-react";
 import { filterOptions, sortOptions, type ProjectFilter, type ProjectSort } from "./constants";
 
@@ -30,7 +30,7 @@ const filterIcons = {
   all: LayoutGrid,
   recent: Clock3,
   pages: BookOpen,
-  stickers: Sparkles,
+  favorites: Star,
   finished: CheckCircle2,
 } as const;
 

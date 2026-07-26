@@ -42,6 +42,7 @@ export function StickerShelf({
       y: centerY - height / 2,
       width,
       height,
+      rotation: 0,
       opacity: 1,
     });
     setTool("select");
@@ -95,7 +96,7 @@ export function StickerShelf({
                         onClick={() => addSticker(sticker)}
                         title={sticker.name}
                         aria-label={`Add ${sticker.name} sticker`}
-                        className="flex aspect-square cursor-pointer items-center justify-center rounded-2xl border border-slate-100 bg-white p-2 shadow-[0_8px_18px_-15px_rgba(15,23,42,0.7)] transition-transform hover:-translate-y-0.5 hover:bg-slate-50 active:scale-95"
+                        className="flex aspect-square cursor-pointer items-center justify-center rounded-2xl border border-slate-100 bg-white p-2 shadow-none transition-transform hover:-translate-y-0.5 hover:bg-slate-50 hover:shadow-[0_10px_20px_-18px_rgba(15,23,42,0.22)] active:scale-95"
                       >
                         <img
                           src={stickerToSrc(sticker)}
@@ -191,10 +192,10 @@ export function ColoringPageShelf({
                           onClick={() => addColoringPage(page)}
                           title={page.name}
                           aria-label={`Add ${page.name} coloring page`}
-                          className={`group cursor-pointer overflow-hidden rounded-[1.35rem] border bg-white p-2 text-left shadow-[0_12px_24px_-18px_rgba(15,23,42,0.75)] transition-all duration-200 hover:-translate-y-0.5 active:scale-95 ${
+                          className={`group cursor-pointer overflow-hidden rounded-[1.35rem] border bg-white p-2 text-left shadow-none transition-all duration-200 hover:-translate-y-0.5 active:scale-95 ${
                             active
-                              ? "border-cyan-300 ring-2 ring-cyan-200/70 shadow-[0_18px_30px_-22px_rgba(8,145,178,0.75)]"
-                              : "border-cyan-100/80 hover:border-cyan-200 hover:shadow-[0_18px_30px_-22px_rgba(8,145,178,0.75)]"
+                              ? "border-cyan-300 ring-2 ring-cyan-200/70"
+                              : "border-cyan-100/80 hover:border-cyan-200 hover:shadow-[0_10px_20px_-18px_rgba(8,145,178,0.28)]"
                           }`}
                         >
                           <span className="relative flex aspect-[4/5] items-center justify-center overflow-hidden rounded-2xl bg-[linear-gradient(145deg,_#ffffff_0%,_#f8fdff_58%,_#eefcff_100%)] px-3 py-2">
