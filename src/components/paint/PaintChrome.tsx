@@ -392,23 +392,24 @@ export function BrushDock({ isMobile, isTablet }: { isMobile: boolean; isTablet:
           animate={{ y: 0, opacity: 1 }}
           exit={{ y: 60, opacity: 0 }}
           transition={{ type: "spring", stiffness: 260, damping: 26 }}
-          className={`absolute left-1/2 z-40 max-w-[calc(100vw-24px)] -translate-x-1/2 ${
+          className={`absolute z-40 ${
             isMobile
-              ? "bottom-4 w-[calc(100vw-24px)]"
+              ? "inset-x-0 bottom-0"
               : isTablet
-                ? "bottom-5 w-[min(calc(100vw-3rem),58rem)]"
-                : "bottom-6"
+                ? "left-1/2 w-[min(calc(100vw-3rem),58rem)] max-w-[calc(100vw-3rem)] -translate-x-1/2 bottom-5"
+                : "left-1/2 max-w-[calc(100vw-24px)] -translate-x-1/2 bottom-6"
           }`}
         >
           <div
-            className={`flex transform-gpu items-center rounded-full border border-slate-100 bg-paint-panel/90 shadow-soft backdrop-blur-xl [backface-visibility:hidden] [will-change:transform] ${
+            className={`transform-gpu border border-slate-100 bg-paint-panel/90 shadow-soft backdrop-blur-xl [backface-visibility:hidden] [will-change:transform] ${
               isMobile
-                ? "rounded-[1.75rem] px-4 py-3"
+                ? "rounded-t-[2.25rem] border-b-0 px-5 pb-[calc(env(safe-area-inset-bottom,0px)+1rem)] pt-4"
                 : isTablet
-                  ? "gap-2 px-3 py-2.5"
-                  : "gap-3 px-4 py-3 sm:gap-5 sm:px-6"
+                  ? "flex items-center gap-2 rounded-full px-3 py-2.5"
+                  : "flex items-center gap-3 rounded-full px-4 py-3 sm:gap-5 sm:px-6"
             }`}
           >
+            {isMobile && <div className="mx-auto mb-4 h-1.5 w-14 rounded-full bg-slate-300/80" />}
             <BrushDockContent tool={tool} isTablet={isTablet} isMobile={isMobile} />
           </div>
         </motion.footer>
@@ -423,18 +424,21 @@ export function ZoomNav({ isMobile, isTablet }: { isMobile: boolean; isTablet: b
   const resetView = usePaintStore((state) => state.resetView);
   const tool = usePaintStore((state) => state.tool);
   const brushDockVisible = ["pencil", "brush", "marker", "eraser"].includes(tool);
+  const mobileSheetVisible = isMobile && brushDockVisible;
 
   return (
     <motion.div
       initial={{ y: 30, opacity: 0 }}
       animate={{ y: 0, opacity: 1 }}
       transition={{ type: "spring", stiffness: 220, damping: 24, delay: 0.1 }}
-      className={`absolute z-40 flex items-center gap-1 rounded-2xl border border-slate-100 bg-paint-panel/90 p-1.5 shadow-soft backdrop-blur-md ${
-        isMobile
-          ? `${brushDockVisible ? "bottom-36" : "bottom-5"} left-1/2 -translate-x-1/2`
-          : isTablet
-            ? `${brushDockVisible ? "bottom-[5.7rem]" : "bottom-5"} left-1/2 -translate-x-1/2`
-            : "bottom-6 right-4"
+      className={`absolute z-40 flex items-center border border-slate-100 bg-paint-panel/90 shadow-soft backdrop-blur-md ${
+        mobileSheetVisible
+          ? "bottom-[13.75rem] left-1/2 -translate-x-1/2 gap-1 rounded-[1.7rem] p-1.5"
+          : isMobile
+            ? "bottom-5 left-1/2 -translate-x-1/2 gap-1 rounded-2xl p-1.5"
+            : isTablet
+              ? `${brushDockVisible ? "bottom-[5.7rem]" : "bottom-5"} left-1/2 -translate-x-1/2 gap-1 rounded-2xl p-1.5`
+              : "bottom-6 right-4 gap-1 rounded-2xl p-1.5"
       }`}
     >
       <button
@@ -534,79 +538,94 @@ function BrushDockContent({
 
   if (isMobile) {
     return (
-      <div className="flex w-full flex-col gap-3">
-        <div className="flex items-center gap-3">
-          <div
-            className="flex size-10 shrink-0 items-center justify-center rounded-full shadow-inner"
-            style={{
-              backgroundColor: tool === "eraser" ? "#fff" : color,
-              border: tool === "eraser" ? "2px dashed #cbd5e1" : "none",
-            }}
-          >
+      <div className="flex w-full flex-col gap-5">
+        <div className="grid grid-cols-[5.75rem_1px_minmax(0,1fr)] items-center gap-4">
+          <div className="flex min-w-0 items-center gap-3">
             <div
-              className="rounded-full"
+              className="flex size-11 shrink-0 items-center justify-center rounded-full shadow-inner"
               style={{
-                width: Math.max(4, brushSize * 0.6),
-                height: Math.max(4, brushSize * 0.6),
-                backgroundColor: "rgba(255,255,255,0.6)",
+                backgroundColor: tool === "eraser" ? "#fff" : color,
+                border: tool === "eraser" ? "2px dashed #cbd5e1" : "none",
               }}
-            />
-          </div>
+            >
+              <div
+                className="rounded-full"
+                style={{
+                  width: Math.max(4, brushSize * 0.6),
+                  height: Math.max(4, brushSize * 0.6),
+                  backgroundColor: "rgba(255,255,255,0.6)",
+                }}
+              />
+            </div>
 
-          <div className="min-w-[4.75rem] shrink-0">
-            <div className="text-sm font-bold capitalize text-slate-700">{tool}</div>
-            <div className="text-[10px] tabular-nums text-slate-400">
-              {brushSize}pt · {Math.round(opacity * 100)}%
+            <div className="min-w-0">
+              <div className="text-[15px] font-bold capitalize text-slate-700">{tool}</div>
+              <div className="text-[11px] tabular-nums text-slate-400">
+                {brushSize}pt · {Math.round(opacity * 100)}%
+              </div>
             </div>
           </div>
 
-          <div className="h-8 w-px shrink-0 bg-slate-200" />
+          <div className="h-16 bg-slate-200" />
 
-          <div className="grid min-w-0 flex-1 grid-cols-2 gap-2">
-            <input
-              type="range"
-              min={1}
-              max={80}
-              value={brushSize}
-              onChange={(event) => setBrushSize(Number(event.target.value))}
-              onPointerDown={stopControlEvent}
-              onPointerMove={stopControlEvent}
-              onPointerUp={stopControlEvent}
-              onPointerCancel={stopControlEvent}
-              onWheel={stopControlEvent}
-              className="min-w-0 cursor-pointer accent-pink-400"
-              aria-label="Brush size"
-            />
-            <input
-              type="range"
-              min={0.05}
-              max={1}
-              step={0.01}
-              value={opacity}
-              onChange={(event) => setOpacity(Number(event.target.value))}
-              onPointerDown={stopControlEvent}
-              onPointerMove={stopControlEvent}
-              onPointerUp={stopControlEvent}
-              onPointerCancel={stopControlEvent}
-              onWheel={stopControlEvent}
-              className="min-w-0 cursor-pointer accent-pink-300"
-              aria-label="Opacity"
-            />
+          <div className="grid min-w-0 grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <input
+                type="range"
+                min={1}
+                max={80}
+                value={brushSize}
+                onChange={(event) => setBrushSize(Number(event.target.value))}
+                onPointerDown={stopControlEvent}
+                onPointerMove={stopControlEvent}
+                onPointerUp={stopControlEvent}
+                onPointerCancel={stopControlEvent}
+                onWheel={stopControlEvent}
+                className="w-full cursor-pointer accent-pink-400"
+                aria-label="Brush size"
+              />
+              <div className="flex items-center justify-between gap-2 text-[11px] text-slate-400">
+                <span>Size</span>
+                <span className="tabular-nums text-slate-500">{brushSize}pt</span>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <input
+                type="range"
+                min={0.05}
+                max={1}
+                step={0.01}
+                value={opacity}
+                onChange={(event) => setOpacity(Number(event.target.value))}
+                onPointerDown={stopControlEvent}
+                onPointerMove={stopControlEvent}
+                onPointerUp={stopControlEvent}
+                onPointerCancel={stopControlEvent}
+                onWheel={stopControlEvent}
+                className="w-full cursor-pointer accent-pink-300"
+                aria-label="Opacity"
+              />
+              <div className="flex items-center justify-between gap-2 text-[11px] text-slate-400">
+                <span>Opacity</span>
+                <span className="tabular-nums text-slate-500">{Math.round(opacity * 100)}%</span>
+              </div>
+            </div>
           </div>
         </div>
 
-        <div className="paint-scrollbar flex gap-1 overflow-x-auto overflow-y-hidden py-1">
+        <div className="paint-scrollbar -mx-1 flex gap-3 overflow-x-auto overflow-y-hidden px-1 pb-1">
           {PALETTE.map((entry) => (
             <button
               key={entry}
               onClick={() => setColor(entry)}
               aria-label={`Color ${entry}`}
-              className={`flex size-9 shrink-0 items-center justify-center rounded-full border-2 bg-white transition-transform hover:scale-110 ${
+              className={`flex size-10 shrink-0 items-center justify-center rounded-full border-2 bg-white transition-transform hover:scale-105 ${
                 color === entry ? "border-pink-400" : "border-transparent"
               }`}
             >
               <span
-                className="block size-7 rounded-full"
+                className="block size-8 rounded-full"
                 style={{
                   backgroundColor: entry,
                   border: entry === "#ffffff" ? "1px solid #e2e8f0" : "none",
@@ -614,7 +633,7 @@ function BrushDockContent({
               />
             </button>
           ))}
-          <label className="flex size-9 shrink-0 cursor-pointer items-center justify-center rounded-full border-2 border-dashed border-slate-300 bg-slate-50 text-slate-400 transition-colors hover:bg-slate-100">
+          <label className="flex size-10 shrink-0 cursor-pointer items-center justify-center rounded-full border-2 border-dashed border-slate-300 bg-slate-50 text-slate-400 transition-colors hover:bg-slate-100">
             <Plus className="size-3" />
             <input
               type="color"
