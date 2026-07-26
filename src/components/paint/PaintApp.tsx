@@ -12,11 +12,13 @@ export function PaintApp() {
   const isTablet = useIsTablet();
   const [stickersOpen, setStickersOpen] = useState(false);
   const [pagesOpen, setPagesOpen] = useState(false);
+  const [mobileBrushSheetCollapsed, setMobileBrushSheetCollapsed] = useState(false);
   const isProjectLoaded = usePaintStore((state) => state.isProjectLoaded);
   const strokesCount = usePaintStore((state) => state.strokes.length);
   const hasBackground = usePaintStore((state) =>
     state.images.some((image) => image.kind !== "sticker"),
   );
+  const tool = usePaintStore((state) => state.tool);
 
   const toggleStickers = () => {
     setPagesOpen(false);
@@ -53,6 +55,12 @@ export function PaintApp() {
     };
   }, [hasBackground, isProjectLoaded, strokesCount]);
 
+  useEffect(() => {
+    if (!isMobile || !["pencil", "brush", "marker", "eraser"].includes(tool)) {
+      setMobileBrushSheetCollapsed(false);
+    }
+  }, [isMobile, tool]);
+
   return (
     <div className="fixed inset-0 overflow-hidden bg-paint-canvas text-slate-700">
       <CanvasSurface />
@@ -70,6 +78,7 @@ export function PaintApp() {
         pagesOpen={pagesOpen}
         onToggleStickers={toggleStickers}
         onTogglePages={togglePages}
+        onBrushToolSelected={() => setMobileBrushSheetCollapsed(false)}
       />
       <ColoringPageShelf isMobile={isMobile} open={pagesOpen} onClose={() => setPagesOpen(false)} />
       <StickerShelf
@@ -77,9 +86,18 @@ export function PaintApp() {
         open={stickersOpen}
         onClose={() => setStickersOpen(false)}
       />
-      <BrushDock isMobile={isMobile} isTablet={isTablet} />
+      <BrushDock
+        isMobile={isMobile}
+        isTablet={isTablet}
+        mobileSheetCollapsed={mobileBrushSheetCollapsed}
+        onMobileSheetCollapsedChange={setMobileBrushSheetCollapsed}
+      />
       <PropertiesPanel isMobile={isMobile} />
-      <ZoomNav isMobile={isMobile} isTablet={isTablet} />
+      <ZoomNav
+        isMobile={isMobile}
+        isTablet={isTablet}
+        mobileSheetCollapsed={mobileBrushSheetCollapsed}
+      />
     </div>
   );
 }

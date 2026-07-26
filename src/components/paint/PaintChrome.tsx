@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, motion, useDragControls, type PanInfo } from "framer-motion";
 import { Link } from "@tanstack/react-router";
 import {
   BookOpen,
@@ -230,17 +230,20 @@ export function ToolDock({
   pagesOpen,
   onToggleStickers,
   onTogglePages,
+  onBrushToolSelected,
 }: {
   isMobile: boolean;
   stickersOpen: boolean;
   pagesOpen: boolean;
   onToggleStickers: () => void;
   onTogglePages: () => void;
+  onBrushToolSelected?: () => void;
 }) {
   const tool = usePaintStore((state) => state.tool);
   const setTool = usePaintStore((state) => state.setTool);
   const fileRef = useRef<HTMLInputElement>(null);
   const setBackgroundImage = usePaintStore((state) => state.setBackgroundImage);
+  const brushTools = new Set<ToolId>(["pencil", "brush", "marker", "eraser"]);
 
   const importImage = async (file: File) => {
     const src = await fileToDataUrl(file);
@@ -264,7 +267,12 @@ export function ToolDock({
             return (
               <button
                 key={entry.id}
-                onClick={() => setTool(entry.id)}
+                onClick={() => {
+                  setTool(entry.id);
+                  if (brushTools.has(entry.id)) {
+                    onBrushToolSelected?.();
+                  }
+                }}
                 title={entry.label}
                 aria-label={entry.label}
                 className={`flex size-9 shrink-0 items-center justify-center rounded-full transition-all active:scale-90 ${
@@ -380,45 +388,142 @@ export function ToolDock({
   );
 }
 
-export function BrushDock({ isMobile, isTablet }: { isMobile: boolean; isTablet: boolean }) {
+export function BrushDock({
+  isMobile,
+  isTablet,
+  mobileSheetCollapsed,
+  onMobileSheetCollapsedChange,
+}: {
+  isMobile: boolean;
+  isTablet: boolean;
+  mobileSheetCollapsed: boolean;
+  onMobileSheetCollapsedChange: (collapsed: boolean) => void;
+}) {
   const tool = usePaintStore((state) => state.tool);
   const showDock = ["pencil", "brush", "marker", "eraser"].includes(tool);
+  const sheetRef = useRef<HTMLDivElement>(null);
+  const dragControls = useDragControls();
+  const [mobileCollapseOffset, setMobileCollapseOffset] = useState(0);
+
+  useEffect(() => {
+    if (!isMobile || !showDock) {
+      setMobileCollapseOffset(0);
+      return;
+    }
+
+    const updateMobileCollapseOffset = () => {
+      const sheetHeight = sheetRef.current?.offsetHeight ?? 0;
+      setMobileCollapseOffset(Math.max(0, sheetHeight));
+    };
+
+    updateMobileCollapseOffset();
+    window.addEventListener("resize", updateMobileCollapseOffset);
+    return () => window.removeEventListener("resize", updateMobileCollapseOffset);
+  }, [isMobile, showDock, tool]);
+
+  const handleMobileSheetDragEnd = (
+    _event: MouseEvent | TouchEvent | PointerEvent,
+    info: PanInfo,
+  ) => {
+    if (!isMobile) return;
+
+    const shouldCollapse =
+      info.offset.y > Math.max(72, mobileCollapseOffset * 0.24) || info.velocity.y > 500;
+    const shouldExpand = info.offset.y < -36 || info.velocity.y < -300;
+
+    if (shouldCollapse) {
+      onMobileSheetCollapsedChange(true);
+      return;
+    }
+
+    if (shouldExpand) {
+      onMobileSheetCollapsedChange(false);
+      return;
+    }
+
+    onMobileSheetCollapsedChange(mobileSheetCollapsed);
+  };
 
   return (
     <AnimatePresence>
       {showDock && (
-        <motion.footer
-          initial={{ y: 60, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          exit={{ y: 60, opacity: 0 }}
-          transition={{ type: "spring", stiffness: 260, damping: 26 }}
-          className={`absolute z-40 ${
-            isMobile
-              ? "inset-x-0 bottom-0"
-              : isTablet
-                ? "left-1/2 w-[min(calc(100vw-3rem),58rem)] max-w-[calc(100vw-3rem)] -translate-x-1/2 bottom-5"
-                : "left-1/2 max-w-[calc(100vw-24px)] -translate-x-1/2 bottom-6"
-          }`}
-        >
-          <div
-            className={`transform-gpu border border-slate-100 bg-paint-panel/90 shadow-soft backdrop-blur-xl [backface-visibility:hidden] [will-change:transform] ${
+        <>
+          {isMobile && mobileSheetCollapsed && (
+            <div className="absolute inset-x-0 bottom-[calc(env(safe-area-inset-bottom,0px)+0.35rem)] z-50 flex justify-center">
+              <button
+                type="button"
+                aria-label="Expand brush controls"
+                aria-expanded={false}
+                onClick={() => onMobileSheetCollapsedChange(false)}
+                onPointerDown={(event) => dragControls.start(event)}
+                className="block cursor-grab rounded-full p-3 active:cursor-grabbing touch-none"
+              >
+                <span className="block h-1.5 w-14 rounded-full bg-slate-300/90 shadow-soft" />
+              </button>
+            </div>
+          )}
+          <motion.footer
+            initial={{ y: 60, opacity: 0 }}
+            animate={{ y: isMobile && mobileSheetCollapsed ? mobileCollapseOffset : 0, opacity: 1 }}
+            exit={{ y: 60, opacity: 0 }}
+            transition={{ type: "spring", stiffness: 260, damping: 26 }}
+            drag={isMobile ? "y" : false}
+            dragControls={dragControls}
+            dragListener={false}
+            dragConstraints={{ top: 0, bottom: isMobile ? mobileCollapseOffset : 0 }}
+            dragElastic={0.08}
+            dragMomentum={false}
+            onDragEnd={handleMobileSheetDragEnd}
+            className={`absolute z-40 ${
               isMobile
-                ? "rounded-t-[2.25rem] border-b-0 px-5 pb-[calc(env(safe-area-inset-bottom,0px)+1rem)] pt-4"
+                ? "inset-x-0 bottom-0 overflow-hidden"
                 : isTablet
-                  ? "flex items-center gap-2 rounded-full px-3 py-2.5"
-                  : "flex items-center gap-3 rounded-full px-4 py-3 sm:gap-5 sm:px-6"
+                  ? "left-1/2 w-[min(calc(100vw-3rem),58rem)] max-w-[calc(100vw-3rem)] -translate-x-1/2 bottom-5"
+                  : "left-1/2 max-w-[calc(100vw-24px)] -translate-x-1/2 bottom-6"
             }`}
           >
-            {isMobile && <div className="mx-auto mb-4 h-1.5 w-14 rounded-full bg-slate-300/80" />}
-            <BrushDockContent tool={tool} isTablet={isTablet} isMobile={isMobile} />
-          </div>
-        </motion.footer>
+            <div
+              ref={sheetRef}
+              className={`transform-gpu border border-slate-100 bg-paint-panel/90 shadow-soft backdrop-blur-xl [backface-visibility:hidden] [will-change:transform] ${
+                isMobile
+                  ? "rounded-t-[2.25rem] border-b-0 px-5 pb-[calc(env(safe-area-inset-bottom,0px)+1rem)] pt-4"
+                  : isTablet
+                    ? "flex items-center gap-2 rounded-full px-3 py-2.5"
+                    : "flex items-center gap-3 rounded-full px-4 py-3 sm:gap-5 sm:px-6"
+              }`}
+            >
+              {isMobile && !mobileSheetCollapsed && (
+                <div className="mx-auto mb-3 flex w-24 justify-center pt-1 touch-none">
+                  <button
+                    type="button"
+                    aria-label="Collapse brush controls"
+                    aria-expanded
+                    onClick={() => onMobileSheetCollapsedChange(true)}
+                    onPointerDown={(event) => dragControls.start(event)}
+                    className="block cursor-grab rounded-full p-2 active:cursor-grabbing touch-none"
+                  >
+                    <span className="block h-1.5 w-14 rounded-full bg-slate-300/80" />
+                  </button>
+                </div>
+              )}
+              <BrushDockContent tool={tool} isTablet={isTablet} isMobile={isMobile} />
+            </div>
+          </motion.footer>
+        </>
       )}
     </AnimatePresence>
   );
 }
 
-export function ZoomNav({ isMobile, isTablet }: { isMobile: boolean; isTablet: boolean }) {
+export function ZoomNav({
+  isMobile,
+  isTablet,
+  mobileSheetCollapsed,
+}: {
+  isMobile: boolean;
+  isTablet: boolean;
+  mobileSheetCollapsed: boolean;
+}) {
   const scale = usePaintStore((state) => state.transform.scale);
   const zoomAt = usePaintStore((state) => state.zoomAt);
   const resetView = usePaintStore((state) => state.resetView);
@@ -433,7 +538,7 @@ export function ZoomNav({ isMobile, isTablet }: { isMobile: boolean; isTablet: b
       transition={{ type: "spring", stiffness: 220, damping: 24, delay: 0.1 }}
       className={`absolute z-40 flex items-center border border-slate-100 bg-paint-panel/90 shadow-soft backdrop-blur-md ${
         mobileSheetVisible
-          ? "bottom-[13.75rem] left-1/2 -translate-x-1/2 gap-1 rounded-[1.7rem] p-1.5"
+          ? `${mobileSheetCollapsed ? "bottom-[2.85rem]" : "bottom-[12.9rem]"} left-1/2 -translate-x-1/2 gap-1 rounded-[1.7rem] p-1.5`
           : isMobile
             ? "bottom-5 left-1/2 -translate-x-1/2 gap-1 rounded-2xl p-1.5"
             : isTablet
