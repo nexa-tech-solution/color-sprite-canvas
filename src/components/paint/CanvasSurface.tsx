@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { usePaintStore, type Point, type CanvasImage } from "@/stores/paintStore";
 
 type ResizeHandle = "nw" | "ne" | "sw" | "se";
@@ -23,6 +23,14 @@ function getBackgroundImage(images: CanvasImage[]) {
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
+}
+
+function getViewportSize() {
+  if (typeof window === "undefined") {
+    return { w: 0, h: 0 };
+  }
+
+  return { w: window.innerWidth, h: window.innerHeight };
 }
 
 function getImageRotation(image: CanvasImage) {
@@ -165,20 +173,23 @@ export function CanvasSurface() {
   } | null>(null);
   const spaceRef = useRef(false);
   const [hoveredHandle, setHoveredHandle] = useState<SelectionHandle | null>(null);
-  const [size, setSize] = useState({ w: 0, h: 0 });
+  const [size, setSize] = useState(getViewportSize);
 
   const s = usePaintStore();
 
   // resize
-  useEffect(() => {
-    const onResize = () => {
-      const viewport = { w: window.innerWidth, h: window.innerHeight };
-      setSize(viewport);
+  useLayoutEffect(() => {
+    const syncViewport = () => {
+      const viewport = getViewportSize();
+      setSize((current) =>
+        current.w === viewport.w && current.h === viewport.h ? current : viewport,
+      );
       usePaintStore.getState().setViewport({ width: viewport.w, height: viewport.h });
     };
-    onResize();
-    window.addEventListener("resize", onResize);
-    return () => window.removeEventListener("resize", onResize);
+
+    syncViewport();
+    window.addEventListener("resize", syncViewport);
+    return () => window.removeEventListener("resize", syncViewport);
   }, []);
 
   // keyboard: space = pan, ctrl+z / y
@@ -395,7 +406,7 @@ export function CanvasSurface() {
   }, [redraw]);
 
   // subscribe to store changes
-  useEffect(() => {
+  useLayoutEffect(() => {
     const unsub = usePaintStore.subscribe(() => scheduleRedraw());
     scheduleRedraw();
     return unsub;
