@@ -15,6 +15,7 @@ import {
   Undo2,
 } from "lucide-react";
 import { toast } from "sonner";
+import { openImagePicker } from "@/lib/nativeBridge";
 import { DEFAULT_PROJECT_NAME } from "@/lib/projects";
 import { usePaintStore, type ToolId } from "@/stores/paintStore";
 import { PALETTE, TOOLS } from "./paintConstants";
@@ -56,7 +57,7 @@ export function TopBar({
     setDraftName(projectName);
   }, [projectName]);
 
-  const onImport = () => fileRef.current?.click();
+  const onImport = () => openImagePicker(fileRef.current);
   const commitProjectName = () => {
     setProjectName(draftName.trim() || DEFAULT_PROJECT_NAME);
   };
@@ -365,7 +366,7 @@ export function ToolDock({
         <BookOpen className="size-5" />
       </button>
       <button
-        onClick={() => fileRef.current?.click()}
+        onClick={() => openImagePicker(fileRef.current)}
         title="Import image"
         className="flex size-11 items-center justify-center rounded-2xl text-slate-400 hover:bg-slate-50 hover:text-slate-600"
       >
