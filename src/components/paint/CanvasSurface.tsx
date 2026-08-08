@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { usePaintStore, type Point, type CanvasImage } from "@/stores/paintStore";
+import { usePaintStore, type Point, type CanvasImage, type Transform } from "@/stores/paintStore";
 
 type ResizeHandle = "nw" | "ne" | "sw" | "se";
 type SelectionHandle = ResizeHandle | "rotate";
@@ -144,6 +144,15 @@ function clampPointToImage(point: Point, image: CanvasImage | null) {
 export function CanvasSurface() {
   const ref = useRef<HTMLCanvasElement>(null);
   const rafRef = useRef<number | null>(null);
+  const activePointersRef = useRef(
+    new Map<number, { clientX: number; clientY: number; pointerType: string }>(),
+  );
+  const pinchRef = useRef<{
+    pointerIds: [number, number];
+    startDistance: number;
+    startMidpoint: { x: number; y: number };
+    startTransform: Transform;
+  } | null>(null);
   const drawingRef = useRef<{ id: string } | null>(null);
   const panRef = useRef<{ x: number; y: number } | null>(null);
   const dragImgRef = useRef<{
@@ -415,13 +424,85 @@ export function CanvasSurface() {
   useEffect(() => scheduleRedraw(), [size, scheduleRedraw]);
 
   // helpers
-  function screenToWorld(clientX: number, clientY: number): Point {
+  function clearInteractionState() {
+    if (drawingRef.current) {
+      usePaintStore.getState().endStroke();
+      drawingRef.current = null;
+    }
+    dragImgRef.current = null;
+    resizeImgRef.current = null;
+    rotateImgRef.current = null;
+    panRef.current = null;
+    setHoveredHandle(null);
+  }
+
+  function toCanvasPoint(clientX: number, clientY: number) {
     const rect = ref.current!.getBoundingClientRect();
-    const t = usePaintStore.getState().transform;
     return {
-      x: (clientX - rect.left - t.x) / t.scale,
-      y: (clientY - rect.top - t.y) / t.scale,
+      x: clientX - rect.left,
+      y: clientY - rect.top,
     };
+  }
+
+  function screenToWorld(clientX: number, clientY: number): Point {
+    const t = usePaintStore.getState().transform;
+    const point = toCanvasPoint(clientX, clientY);
+    return {
+      x: (point.x - t.x) / t.scale,
+      y: (point.y - t.y) / t.scale,
+    };
+  }
+
+  function syncPinchGesture() {
+    const touches = Array.from(activePointersRef.current.entries()).filter(
+      ([, pointer]) => pointer.pointerType === "touch",
+    );
+
+    if (touches.length < 2) {
+      pinchRef.current = null;
+      return false;
+    }
+
+    const [[firstId, first], [secondId, second]] = touches;
+    const firstPoint = toCanvasPoint(first.clientX, first.clientY);
+    const secondPoint = toCanvasPoint(second.clientX, second.clientY);
+    const midpoint = {
+      x: (firstPoint.x + secondPoint.x) / 2,
+      y: (firstPoint.y + secondPoint.y) / 2,
+    };
+    const distance = Math.hypot(secondPoint.x - firstPoint.x, secondPoint.y - firstPoint.y);
+
+    if (distance <= 0) return true;
+
+    const currentPinch = pinchRef.current;
+    const samePointers =
+      currentPinch &&
+      currentPinch.pointerIds.includes(firstId) &&
+      currentPinch.pointerIds.includes(secondId);
+
+    if (!samePointers) {
+      pinchRef.current = {
+        pointerIds: [firstId, secondId],
+        startDistance: distance,
+        startMidpoint: midpoint,
+        startTransform: { ...usePaintStore.getState().transform },
+      };
+      return true;
+    }
+
+    const pinch = pinchRef.current;
+    if (!pinch) return true;
+
+    const nextScale = pinch.startTransform.scale * (distance / pinch.startDistance);
+    const scaleFactor = nextScale / pinch.startTransform.scale;
+
+    usePaintStore.getState().setTransform({
+      scale: nextScale,
+      x: midpoint.x - (pinch.startMidpoint.x - pinch.startTransform.x) * scaleFactor,
+      y: midpoint.y - (pinch.startMidpoint.y - pinch.startTransform.y) * scaleFactor,
+    });
+
+    return true;
   }
 
   function hitImage(p: Point): CanvasImage | undefined {
@@ -462,6 +543,17 @@ export function CanvasSurface() {
   // pointer handlers
   const onPointerDown = (e: React.PointerEvent) => {
     (e.target as Element).setPointerCapture(e.pointerId);
+    activePointersRef.current.set(e.pointerId, {
+      clientX: e.clientX,
+      clientY: e.clientY,
+      pointerType: e.pointerType,
+    });
+
+    if (e.pointerType === "touch" && syncPinchGesture()) {
+      clearInteractionState();
+      return;
+    }
+
     const st = usePaintStore.getState();
     const isPan = st.tool === "pan" || spaceRef.current || e.button === 1;
     if (isPan) {
@@ -551,6 +643,19 @@ export function CanvasSurface() {
   };
 
   const onPointerMove = (e: React.PointerEvent) => {
+    if (activePointersRef.current.has(e.pointerId)) {
+      activePointersRef.current.set(e.pointerId, {
+        clientX: e.clientX,
+        clientY: e.clientY,
+        pointerType: e.pointerType,
+      });
+    }
+
+    if ((e.pointerType === "touch" && pinchRef.current) || syncPinchGesture()) {
+      clearInteractionState();
+      return;
+    }
+
     const st = usePaintStore.getState();
     if (
       st.tool === "select" &&
@@ -660,15 +765,15 @@ export function CanvasSurface() {
     }
   };
 
-  const onPointerUp = () => {
-    if (drawingRef.current) {
-      usePaintStore.getState().endStroke();
-      drawingRef.current = null;
+  const onPointerUp = (e: React.PointerEvent) => {
+    activePointersRef.current.delete(e.pointerId);
+    if ((e.target as Element).hasPointerCapture(e.pointerId)) {
+      (e.target as Element).releasePointerCapture(e.pointerId);
     }
-    dragImgRef.current = null;
-    resizeImgRef.current = null;
-    rotateImgRef.current = null;
-    panRef.current = null;
+
+    if (!syncPinchGesture()) {
+      clearInteractionState();
+    }
   };
 
   const onWheel = (e: React.WheelEvent) => {

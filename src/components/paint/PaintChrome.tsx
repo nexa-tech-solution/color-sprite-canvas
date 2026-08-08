@@ -402,6 +402,7 @@ export function BrushDock({
 }) {
   const tool = usePaintStore((state) => state.tool);
   const showDock = ["pencil", "brush", "marker", "eraser"].includes(tool);
+  const renderSheet = !isMobile || !mobileSheetCollapsed;
   const sheetRef = useRef<HTMLDivElement>(null);
   const dragControls = useDragControls();
   const [mobileCollapseOffset, setMobileCollapseOffset] = useState(0);
@@ -456,60 +457,61 @@ export function BrushDock({
                 aria-label="Expand brush controls"
                 aria-expanded={false}
                 onClick={() => onMobileSheetCollapsedChange(false)}
-                onPointerDown={(event) => dragControls.start(event)}
-                className="block cursor-grab rounded-full p-3 active:cursor-grabbing touch-none"
+                className="block rounded-full p-3 touch-none"
               >
                 <span className="block h-1.5 w-14 rounded-full bg-slate-300/90 shadow-soft" />
               </button>
             </div>
           )}
-          <motion.footer
-            initial={{ y: 60, opacity: 0 }}
-            animate={{ y: isMobile && mobileSheetCollapsed ? mobileCollapseOffset : 0, opacity: 1 }}
-            exit={{ y: 60, opacity: 0 }}
-            transition={{ type: "spring", stiffness: 260, damping: 26 }}
-            drag={isMobile ? "y" : false}
-            dragControls={dragControls}
-            dragListener={false}
-            dragConstraints={{ top: 0, bottom: isMobile ? mobileCollapseOffset : 0 }}
-            dragElastic={0.08}
-            dragMomentum={false}
-            onDragEnd={handleMobileSheetDragEnd}
-            className={`absolute z-40 ${
-              isMobile
-                ? "inset-x-0 bottom-0 overflow-hidden"
-                : isTablet
-                  ? "left-1/2 w-[min(calc(100vw-3rem),58rem)] max-w-[calc(100vw-3rem)] -translate-x-1/2 bottom-5"
-                  : "left-1/2 max-w-[calc(100vw-24px)] -translate-x-1/2 bottom-6"
-            }`}
-          >
-            <div
-              ref={sheetRef}
-              className={`transform-gpu border border-slate-100 bg-paint-panel/90 shadow-soft backdrop-blur-xl [backface-visibility:hidden] [will-change:transform] ${
+          {renderSheet && (
+            <motion.footer
+              initial={{ y: 60, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: 60, opacity: 0 }}
+              transition={{ type: "spring", stiffness: 260, damping: 26 }}
+              drag={isMobile ? "y" : false}
+              dragControls={dragControls}
+              dragListener={false}
+              dragConstraints={{ top: 0, bottom: isMobile ? mobileCollapseOffset : 0 }}
+              dragElastic={0.08}
+              dragMomentum={false}
+              onDragEnd={handleMobileSheetDragEnd}
+              className={`absolute z-40 ${
                 isMobile
-                  ? "rounded-t-[2.25rem] border-b-0 px-5 pb-[calc(env(safe-area-inset-bottom,0px)+1rem)] pt-4"
+                  ? "inset-x-0 bottom-0 overflow-hidden"
                   : isTablet
-                    ? "flex items-center gap-2 rounded-full px-3 py-2.5"
-                    : "flex items-center gap-3 rounded-full px-4 py-3 sm:gap-5 sm:px-6"
+                    ? "bottom-5 left-1/2 w-[min(calc(100vw-3rem),58rem)] max-w-[calc(100vw-3rem)] -translate-x-1/2"
+                    : "bottom-6 left-1/2 max-w-[calc(100vw-24px)] -translate-x-1/2"
               }`}
             >
-              {isMobile && !mobileSheetCollapsed && (
-                <div className="mx-auto mb-3 flex w-24 justify-center pt-1 touch-none">
-                  <button
-                    type="button"
-                    aria-label="Collapse brush controls"
-                    aria-expanded
-                    onClick={() => onMobileSheetCollapsedChange(true)}
-                    onPointerDown={(event) => dragControls.start(event)}
-                    className="block cursor-grab rounded-full p-2 active:cursor-grabbing touch-none"
-                  >
-                    <span className="block h-1.5 w-14 rounded-full bg-slate-300/80" />
-                  </button>
-                </div>
-              )}
-              <BrushDockContent tool={tool} isTablet={isTablet} isMobile={isMobile} />
-            </div>
-          </motion.footer>
+              <div
+                ref={sheetRef}
+                className={`transform-gpu border border-slate-100 bg-paint-panel/90 shadow-soft backdrop-blur-xl [backface-visibility:hidden] [will-change:transform] ${
+                  isMobile
+                    ? "rounded-t-[2.25rem] border-b-0 px-5 pb-[calc(env(safe-area-inset-bottom,0px)+1rem)] pt-4"
+                    : isTablet
+                      ? "flex items-center gap-2 rounded-full px-3 py-2.5"
+                      : "flex items-center gap-3 rounded-full px-4 py-3 sm:gap-5 sm:px-6"
+                }`}
+              >
+                {isMobile && (
+                  <div className="mx-auto mb-3 flex w-24 justify-center pt-1 touch-none">
+                    <button
+                      type="button"
+                      aria-label="Collapse brush controls"
+                      aria-expanded
+                      onClick={() => onMobileSheetCollapsedChange(true)}
+                      onPointerDown={(event) => dragControls.start(event)}
+                      className="block cursor-grab rounded-full p-2 active:cursor-grabbing touch-none"
+                    >
+                      <span className="block h-1.5 w-14 rounded-full bg-slate-300/80" />
+                    </button>
+                  </div>
+                )}
+                <BrushDockContent tool={tool} isTablet={isTablet} isMobile={isMobile} />
+              </div>
+            </motion.footer>
+          )}
         </>
       )}
     </AnimatePresence>
@@ -720,7 +722,7 @@ function BrushDockContent({
           </div>
         </div>
 
-        <div className="paint-scrollbar -mx-1 flex gap-3 overflow-x-auto overflow-y-hidden px-1 pb-1">
+        <div className="paint-scrollbar -mx-1 flex gap-3 overflow-x-auto overflow-y-hidden px-1 pb-1 pr-4">
           {PALETTE.map((entry) => (
             <button
               key={entry}
@@ -739,13 +741,17 @@ function BrushDockContent({
               />
             </button>
           ))}
-          <label className="flex size-10 shrink-0 cursor-pointer items-center justify-center rounded-full border-2 border-dashed border-slate-300 bg-slate-50 text-slate-400 transition-colors hover:bg-slate-100">
-            <Plus className="size-3" />
+          <label className="relative mr-2 flex size-10 shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded-full border-2 border-dashed border-slate-300 bg-slate-50 text-slate-400 transition-colors hover:bg-slate-100">
+            <Plus className="pointer-events-none size-3" />
             <input
               type="color"
-              className="sr-only"
+              className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
               value={color}
               onChange={(event) => setColor(event.target.value)}
+              onPointerDown={stopControlEvent}
+              onPointerMove={stopControlEvent}
+              onPointerUp={stopControlEvent}
+              onPointerCancel={stopControlEvent}
             />
           </label>
         </div>
@@ -823,7 +829,7 @@ function BrushDockContent({
       <div className="h-8 w-px shrink-0 bg-slate-200" />
 
       <div
-        className={`paint-scrollbar flex gap-1 overflow-x-auto overflow-y-hidden px-2 py-1 ${
+        className={`paint-scrollbar flex gap-1 overflow-x-auto overflow-y-hidden px-2 py-1 pr-4 ${
           isTablet ? "max-w-[22rem]" : "max-w-[236px] sm:max-w-none"
         }`}
       >
@@ -846,16 +852,20 @@ function BrushDockContent({
           </button>
         ))}
         <label
-          className={`flex shrink-0 cursor-pointer items-center justify-center rounded-full border-2 border-dashed border-slate-300 bg-slate-50 text-slate-400 transition-colors hover:bg-slate-100 ${
+          className={`relative mr-2 flex shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded-full border-2 border-dashed border-slate-300 bg-slate-50 text-slate-400 transition-colors hover:bg-slate-100 ${
             isTablet ? "size-8" : "size-9"
           }`}
         >
-          <Plus className="size-3" />
+          <Plus className="pointer-events-none size-3" />
           <input
             type="color"
-            className="sr-only"
+            className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
             value={color}
             onChange={(event) => setColor(event.target.value)}
+            onPointerDown={stopControlEvent}
+            onPointerMove={stopControlEvent}
+            onPointerUp={stopControlEvent}
+            onPointerCancel={stopControlEvent}
           />
         </label>
       </div>
