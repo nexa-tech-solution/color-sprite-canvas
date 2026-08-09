@@ -41,6 +41,11 @@ export const PAINT_ACTIONS = {
   pageShelfTitle: "Coloring book",
   pageReadyMessage: "is ready to color",
   importSuccessMessage: "Picture added as your coloring page background",
+  backgroundDrawWarning:
+    "Drawing now stays inside the selected page or picture. Use Free Canvas to draw anywhere.",
+  freeCanvasLabel: "Free canvas",
+  freeCanvasReadyMessage: "Free canvas is ready. Draw anywhere on the canvas.",
+  freeCanvasAlreadyActiveMessage: "You're already drawing on the free canvas.",
   exportFilePrefix: "coloring",
   defaultProjectNamePrefix: "My coloring page",
 } as const;

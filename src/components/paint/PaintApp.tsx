@@ -18,6 +18,7 @@ export function PaintApp() {
   const hasBackground = usePaintStore((state) =>
     state.images.some((image) => image.kind !== "sticker"),
   );
+  const preferBlankCanvas = usePaintStore((state) => state.preferBlankCanvas);
   const tool = usePaintStore((state) => state.tool);
 
   const toggleStickers = () => {
@@ -31,7 +32,13 @@ export function PaintApp() {
   };
 
   useEffect(() => {
-    if (!isProjectLoaded || hasBackground || strokesCount > 0 || COLORING_PAGES.length === 0) {
+    if (
+      !isProjectLoaded ||
+      preferBlankCanvas ||
+      hasBackground ||
+      strokesCount > 0 ||
+      COLORING_PAGES.length === 0
+    ) {
       return;
     }
 
@@ -52,7 +59,7 @@ export function PaintApp() {
     return () => {
       cancelled = true;
     };
-  }, [hasBackground, isProjectLoaded, strokesCount]);
+  }, [hasBackground, isProjectLoaded, preferBlankCanvas, strokesCount]);
 
   useEffect(() => {
     if (!isMobile || !["pencil", "brush", "marker", "eraser"].includes(tool)) {

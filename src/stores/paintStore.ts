@@ -49,6 +49,7 @@ interface PaintState {
   strokes: Stroke[];
   images: CanvasImage[];
   selectedImageId: string | null;
+  preferBlankCanvas: boolean;
 
   showWelcome: boolean;
 
@@ -70,6 +71,7 @@ interface PaintState {
     image: CanvasImage,
     options?: { keepWelcome?: boolean; selectImageId?: string | null; skipHistory?: boolean },
   ) => void;
+  clearBackground: () => void;
 
   beginStroke: (s: Stroke) => void;
   extendStroke: (id: string, p: Point) => void;
@@ -229,6 +231,7 @@ export const usePaintStore = create<PaintState>((set, get) => ({
   strokes: [],
   images: [],
   selectedImageId: null,
+  preferBlankCanvas: false,
 
   showWelcome: true,
 
@@ -253,6 +256,9 @@ export const usePaintStore = create<PaintState>((set, get) => ({
       })),
       images: project.images.map((image) => ({ ...image, rotation: image.rotation ?? 0 })),
       selectedImageId: null,
+      preferBlankCanvas:
+        !project.images.some((image) => image.kind !== "sticker") &&
+        (project.strokes.length > 0 || project.images.length > 0),
       showWelcome: project.strokes.length === 0 && project.images.length === 0,
       history: [],
       future: [],
@@ -321,6 +327,7 @@ export const usePaintStore = create<PaintState>((set, get) => ({
       const nextState = {
         images,
         selectedImageId: options?.selectImageId ?? null,
+        preferBlankCanvas: false,
         showWelcome: options?.keepWelcome ? s.showWelcome : false,
         transform: getFocusedTransform(backgroundImage, s.viewport),
       };
@@ -329,6 +336,19 @@ export const usePaintStore = create<PaintState>((set, get) => ({
 
       return {
         ...nextState,
+        history: [...s.history, snap(s)].slice(-80),
+        future: [],
+      };
+    }),
+  clearBackground: () =>
+    set((s) => {
+      const images = s.images.filter((image) => image.kind === "sticker");
+      return {
+        images,
+        selectedImageId: null,
+        preferBlankCanvas: true,
+        showWelcome: false,
+        transform: initialTransform,
         history: [...s.history, snap(s)].slice(-80),
         future: [],
       };
@@ -368,9 +388,11 @@ export const usePaintStore = create<PaintState>((set, get) => ({
   removeImage: (id) =>
     set((s) => {
       const images = s.images.filter((image) => image.id !== id);
+      const preferBlankCanvas = !getBackgroundImage(images);
       const next = {
         images,
         selectedImageId: null,
+        preferBlankCanvas,
         transform: clampTransform(s.transform, s.viewport, getBackgroundImage(images)),
       };
       return { ...next, history: [...s.history, snap(s)].slice(-80), future: [] };

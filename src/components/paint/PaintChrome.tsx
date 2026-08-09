@@ -18,13 +18,25 @@ import { toast } from "sonner";
 import { openImagePicker } from "@/lib/nativeBridge";
 import { DEFAULT_PROJECT_NAME } from "@/lib/projects";
 import { usePaintStore, type ToolId } from "@/stores/paintStore";
-import { PALETTE, TOOLS } from "./paintConstants";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { PAINT_ACTIONS, PALETTE, TOOLS } from "./paintConstants";
 import {
   buildImportedBackground,
   exportCanvas,
   fileToDataUrl,
   stopControlEvent,
 } from "./paintUtils";
+
+const DRAW_TOOLS = new Set<ToolId>(["pencil", "brush", "marker", "eraser"]);
 
 export function TopBar({
   isMobile,
@@ -44,14 +56,25 @@ export function TopBar({
   const undo = usePaintStore((state) => state.undo);
   const redo = usePaintStore((state) => state.redo);
   const clearAll = usePaintStore((state) => state.clearAll);
+  const clearBackground = usePaintStore((state) => state.clearBackground);
   const canUndo = usePaintStore((state) => state.history.length > 0);
   const canRedo = usePaintStore((state) => state.future.length > 0);
+  const hasBackgroundImage = usePaintStore((state) =>
+    state.images.some((image) => image.kind !== "sticker"),
+  );
+  const hasFreeCanvasContent = usePaintStore(
+    (state) => state.strokes.length > 0 || state.images.some((image) => image.kind === "sticker"),
+  );
+  const currentTool = usePaintStore((state) => state.tool);
   const hasContent = usePaintStore(
     (state) => state.strokes.length > 0 || state.images.some((image) => image.kind === "sticker"),
   );
   const fileRef = useRef<HTMLInputElement>(null);
   const setBackgroundImage = usePaintStore((state) => state.setBackgroundImage);
   const [draftName, setDraftName] = useState(projectName);
+  const [freeCanvasConfirmOpen, setFreeCanvasConfirmOpen] = useState(false);
+  const [importConfirmOpen, setImportConfirmOpen] = useState(false);
+  const [pendingImportFile, setPendingImportFile] = useState<File | null>(null);
 
   useEffect(() => {
     setDraftName(projectName);
@@ -62,12 +85,52 @@ export function TopBar({
     setProjectName(draftName.trim() || DEFAULT_PROJECT_NAME);
   };
 
-  const handleFile = async (file: File) => {
+  const applyImportedBackground = async (file: File) => {
     const src = await fileToDataUrl(file);
     const background = await buildImportedBackground(src);
     setBackgroundImage(background, { selectImageId: background.id });
     usePaintStore.getState().setTool("select");
     toast.success("Picture added as your coloring page background");
+  };
+
+  const handleFile = async (file: File) => {
+    if (!hasBackgroundImage && hasFreeCanvasContent) {
+      setPendingImportFile(file);
+      setImportConfirmOpen(true);
+      return;
+    }
+
+    await applyImportedBackground(file);
+  };
+
+  const activateFreeCanvas = () => {
+    if (!hasBackgroundImage) {
+      if (!DRAW_TOOLS.has(currentTool)) {
+        usePaintStore.getState().setTool("pencil");
+      }
+      toast.message(PAINT_ACTIONS.freeCanvasAlreadyActiveMessage);
+      return;
+    }
+
+    setFreeCanvasConfirmOpen(true);
+  };
+
+  const confirmFreeCanvas = () => {
+    clearBackground();
+    if (!DRAW_TOOLS.has(currentTool)) {
+      usePaintStore.getState().setTool("pencil");
+    }
+    setFreeCanvasConfirmOpen(false);
+    toast.success(PAINT_ACTIONS.freeCanvasReadyMessage);
+  };
+
+  const confirmImportBackground = async () => {
+    const file = pendingImportFile;
+    if (!file) return;
+
+    setImportConfirmOpen(false);
+    setPendingImportFile(null);
+    await applyImportedBackground(file);
   };
 
   return (
@@ -148,13 +211,16 @@ export function TopBar({
               <IconBtn label="Import image" onClick={onImport} className="size-8 rounded-full">
                 <ImagePlus className="size-3.5" />
               </IconBtn>
-              <button
-                onClick={exportCanvas}
-                aria-label="Export canvas"
-                className="ml-1 flex size-8 items-center justify-center rounded-full border border-violet-200/70 bg-violet-100 text-violet-700 shadow-[0_10px_20px_-14px_rgba(139,92,246,0.75)] transition-colors hover:bg-violet-200/80"
+              <IconBtn
+                label={PAINT_ACTIONS.freeCanvasLabel}
+                onClick={activateFreeCanvas}
+                className="size-8 rounded-full"
               >
-                <Download className="size-3.5" />
-              </button>
+                <Crosshair className={`size-3.5 ${!hasBackgroundImage ? "text-cyan-700" : ""}`} />
+              </IconBtn>
+              <IconBtn onClick={exportCanvas} label="Export canvas" className="size-8 rounded-full">
+                <Download className="size-3.5 text-violet-700" />
+              </IconBtn>
             </div>
           )}
         </div>
@@ -177,6 +243,16 @@ export function TopBar({
               className="flex items-center gap-2 rounded-2xl border border-slate-100 bg-paint-panel/80 px-4 py-2.5 text-sm font-medium text-slate-600 shadow-soft transition-colors hover:bg-white"
             >
               <ImagePlus className="size-4" /> Import
+            </button>
+            <button
+              onClick={activateFreeCanvas}
+              className={`flex items-center gap-2 rounded-2xl border px-4 py-2.5 text-sm font-medium shadow-soft transition-colors ${
+                !hasBackgroundImage
+                  ? "border-cyan-200 bg-brand-mint text-cyan-700"
+                  : "border-slate-100 bg-paint-panel/80 text-slate-600 hover:bg-white"
+              }`}
+            >
+              <Crosshair className="size-4" /> {PAINT_ACTIONS.freeCanvasLabel}
             </button>
             <button
               onClick={onToggleStickers}
@@ -221,6 +297,69 @@ export function TopBar({
           event.target.value = "";
         }}
       />
+      <AlertDialog open={freeCanvasConfirmOpen} onOpenChange={setFreeCanvasConfirmOpen}>
+        <AlertDialogContent className="w-[calc(100%-32px)] max-w-[380px] rounded-[28px] border border-white/90 bg-white/95 p-5 text-[#17243a] shadow-[0_28px_70px_-36px_rgba(23,36,58,0.65)] backdrop-blur-md sm:rounded-[28px]">
+          <AlertDialogHeader className="space-y-3 text-left">
+            <div className="flex size-10 items-center justify-center rounded-[15px] bg-[#eefbff] text-cyan-700">
+              <Crosshair className="size-5" />
+            </div>
+            <AlertDialogTitle className="text-xl font-semibold tracking-normal text-[#17243a]">
+              Switch to Free Canvas?
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-sm leading-relaxed text-[#697b9a]">
+              Your current coloring page will be removed when you switch to Free Canvas. Do you want
+              to continue?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="mt-2 gap-2 sm:space-x-0">
+            <AlertDialogCancel className="mt-0 rounded-[14px] border-0 bg-[#f1f4f8] px-4 py-2 text-sm font-semibold text-[#667a9c] shadow-none hover:bg-[#e8edf5] hover:text-[#17243a]">
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmFreeCanvas}
+              className="rounded-[14px] bg-cyan-600 px-4 py-2 text-sm font-semibold text-white shadow-none hover:bg-cyan-700"
+            >
+              Switch
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      <AlertDialog
+        open={importConfirmOpen}
+        onOpenChange={(open) => {
+          setImportConfirmOpen(open);
+          if (!open) {
+            setPendingImportFile(null);
+          }
+        }}
+      >
+        <AlertDialogContent className="w-[calc(100%-32px)] max-w-[380px] rounded-[28px] border border-white/90 bg-white/95 p-5 text-[#17243a] shadow-[0_28px_70px_-36px_rgba(23,36,58,0.65)] backdrop-blur-md sm:rounded-[28px]">
+          <AlertDialogHeader className="space-y-3 text-left">
+            <div className="flex size-10 items-center justify-center rounded-[15px] bg-[#eefbff] text-cyan-700">
+              <ImagePlus className="size-5" />
+            </div>
+            <AlertDialogTitle className="text-xl font-semibold tracking-normal text-[#17243a]">
+              Switch to a Coloring Page?
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-sm leading-relaxed text-[#697b9a]">
+              Your current Free Canvas mode will be replaced when you switch to a coloring page or
+              picture background. In coloring mode, you can only draw inside the picture frame. Do
+              you want to continue?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="mt-2 gap-2 sm:space-x-0">
+            <AlertDialogCancel className="mt-0 rounded-[14px] border-0 bg-[#f1f4f8] px-4 py-2 text-sm font-semibold text-[#667a9c] shadow-none hover:bg-[#e8edf5] hover:text-[#17243a]">
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => void confirmImportBackground()}
+              className="rounded-[14px] bg-cyan-600 px-4 py-2 text-sm font-semibold text-white shadow-none hover:bg-cyan-700"
+            >
+              Switch
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </motion.nav>
   );
 }
@@ -244,14 +383,41 @@ export function ToolDock({
   const setTool = usePaintStore((state) => state.setTool);
   const fileRef = useRef<HTMLInputElement>(null);
   const setBackgroundImage = usePaintStore((state) => state.setBackgroundImage);
-  const brushTools = new Set<ToolId>(["pencil", "brush", "marker", "eraser"]);
+  const hasBackgroundImage = usePaintStore((state) =>
+    state.images.some((image) => image.kind !== "sticker"),
+  );
+  const hasFreeCanvasContent = usePaintStore(
+    (state) => state.strokes.length > 0 || state.images.some((image) => image.kind === "sticker"),
+  );
+  const brushTools = DRAW_TOOLS;
+  const [importConfirmOpen, setImportConfirmOpen] = useState(false);
+  const [pendingImportFile, setPendingImportFile] = useState<File | null>(null);
 
-  const importImage = async (file: File) => {
+  const applyImportedBackground = async (file: File) => {
     const src = await fileToDataUrl(file);
     const background = await buildImportedBackground(src);
     setBackgroundImage(background, { selectImageId: background.id });
     setTool("select");
     toast.success("Picture added as your coloring page background");
+  };
+
+  const importImage = async (file: File) => {
+    if (!hasBackgroundImage && hasFreeCanvasContent) {
+      setPendingImportFile(file);
+      setImportConfirmOpen(true);
+      return;
+    }
+
+    await applyImportedBackground(file);
+  };
+
+  const confirmImportBackground = async () => {
+    const file = pendingImportFile;
+    if (!file) return;
+
+    setImportConfirmOpen(false);
+    setPendingImportFile(null);
+    await applyImportedBackground(file);
   };
 
   if (isMobile) {
@@ -385,6 +551,42 @@ export function ToolDock({
           event.target.value = "";
         }}
       />
+      <AlertDialog
+        open={importConfirmOpen}
+        onOpenChange={(open) => {
+          setImportConfirmOpen(open);
+          if (!open) {
+            setPendingImportFile(null);
+          }
+        }}
+      >
+        <AlertDialogContent className="w-[calc(100%-32px)] max-w-[380px] rounded-[28px] border border-white/90 bg-white/95 p-5 text-[#17243a] shadow-[0_28px_70px_-36px_rgba(23,36,58,0.65)] backdrop-blur-md sm:rounded-[28px]">
+          <AlertDialogHeader className="space-y-3 text-left">
+            <div className="flex size-10 items-center justify-center rounded-[15px] bg-[#eefbff] text-cyan-700">
+              <ImagePlus className="size-5" />
+            </div>
+            <AlertDialogTitle className="text-xl font-semibold tracking-normal text-[#17243a]">
+              Switch to a Coloring Page?
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-sm leading-relaxed text-[#697b9a]">
+              Your current Free Canvas mode will be replaced when you switch to a coloring page or
+              picture background. In coloring mode, you can only draw inside the picture frame. Do
+              you want to continue?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="mt-2 gap-2 sm:space-x-0">
+            <AlertDialogCancel className="mt-0 rounded-[14px] border-0 bg-[#f1f4f8] px-4 py-2 text-sm font-semibold text-[#667a9c] shadow-none hover:bg-[#e8edf5] hover:text-[#17243a]">
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => void confirmImportBackground()}
+              className="rounded-[14px] bg-cyan-600 px-4 py-2 text-sm font-semibold text-white shadow-none hover:bg-cyan-700"
+            >
+              Switch
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </motion.aside>
   );
 }
