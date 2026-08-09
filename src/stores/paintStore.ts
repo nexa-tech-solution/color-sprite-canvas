@@ -124,6 +124,12 @@ function getViewportFrame(viewport: Viewport): ViewportFrame {
   };
 }
 
+function getViewportFocusYOffset(viewport: Viewport, image: CanvasImage | null) {
+  if (viewport.width >= 768 || !image) return 0;
+
+  return image.kind === "coloring-page" ? -40 : -24;
+}
+
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
 }
@@ -162,7 +168,10 @@ function clampTransform(transform: Transform, viewport: Viewport, image: CanvasI
 
   const y =
     scaledHeight <= frame.height
-      ? frame.top + frame.height / 2 - (image.y + image.height / 2) * scale
+      ? frame.top +
+        frame.height / 2 -
+        (image.y + image.height / 2) * scale +
+        getViewportFocusYOffset(viewport, image)
       : clamp(
           transform.y,
           frame.top + frame.height - (image.y + image.height) * scale,
@@ -181,7 +190,11 @@ function getFocusedTransform(image: CanvasImage, viewport: Viewport) {
     {
       scale,
       x: frame.left + frame.width / 2 - (image.x + image.width / 2) * scale,
-      y: frame.top + frame.height / 2 - (image.y + image.height / 2) * scale,
+      y:
+        frame.top +
+        frame.height / 2 -
+        (image.y + image.height / 2) * scale +
+        getViewportFocusYOffset(viewport, image),
     },
     viewport,
     image,

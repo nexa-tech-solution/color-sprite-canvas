@@ -743,7 +743,7 @@ export function ZoomNav({
       transition={{ type: "spring", stiffness: 220, damping: 24, delay: 0.1 }}
       className={`absolute z-40 flex items-center border border-slate-100 bg-paint-panel/90 shadow-soft backdrop-blur-md ${
         mobileSheetVisible
-          ? `${mobileSheetCollapsed ? "bottom-[2.85rem]" : "bottom-[12.9rem]"} left-1/2 -translate-x-1/2 gap-1 rounded-[1.7rem] p-1.5`
+          ? `${mobileSheetCollapsed ? "bottom-[2.85rem]" : "bottom-[13.7rem]"} left-1/2 -translate-x-1/2 gap-1 rounded-[1.7rem] p-1.5`
           : isMobile
             ? "bottom-5 left-1/2 -translate-x-1/2 gap-1 rounded-2xl p-1.5"
             : isTablet
