@@ -144,11 +144,7 @@ function clampPointToImage(point: Point, image: CanvasImage | null) {
 export function CanvasSurface() {
   const ref = useRef<HTMLCanvasElement>(null);
   const rafRef = useRef<number | null>(null);
-  const activePointersRef = useRef(
-    new Map<number, { clientX: number; clientY: number; pointerType: string }>(),
-  );
-  const pinchRef = useRef<{
-    pointerIds: [number, number];
+  const touchGestureRef = useRef<{
     startDistance: number;
     startMidpoint: { x: number; y: number };
     startTransform: Transform;
@@ -453,19 +449,14 @@ export function CanvasSurface() {
     };
   }
 
-  function syncPinchGesture() {
-    const touches = Array.from(activePointersRef.current.entries()).filter(
-      ([, pointer]) => pointer.pointerType === "touch",
-    );
-
+  function syncTouchGesture(touches: TouchList) {
     if (touches.length < 2) {
-      pinchRef.current = null;
+      touchGestureRef.current = null;
       return false;
     }
 
-    const [[firstId, first], [secondId, second]] = touches;
-    const firstPoint = toCanvasPoint(first.clientX, first.clientY);
-    const secondPoint = toCanvasPoint(second.clientX, second.clientY);
+    const firstPoint = toCanvasPoint(touches[0].clientX, touches[0].clientY);
+    const secondPoint = toCanvasPoint(touches[1].clientX, touches[1].clientY);
     const midpoint = {
       x: (firstPoint.x + secondPoint.x) / 2,
       y: (firstPoint.y + secondPoint.y) / 2,
@@ -474,15 +465,8 @@ export function CanvasSurface() {
 
     if (distance <= 0) return true;
 
-    const currentPinch = pinchRef.current;
-    const samePointers =
-      currentPinch &&
-      currentPinch.pointerIds.includes(firstId) &&
-      currentPinch.pointerIds.includes(secondId);
-
-    if (!samePointers) {
-      pinchRef.current = {
-        pointerIds: [firstId, secondId],
+    if (!touchGestureRef.current) {
+      touchGestureRef.current = {
         startDistance: distance,
         startMidpoint: midpoint,
         startTransform: { ...usePaintStore.getState().transform },
@@ -490,16 +474,16 @@ export function CanvasSurface() {
       return true;
     }
 
-    const pinch = pinchRef.current;
-    if (!pinch) return true;
+    const gesture = touchGestureRef.current;
+    if (!gesture) return true;
 
-    const nextScale = pinch.startTransform.scale * (distance / pinch.startDistance);
-    const scaleFactor = nextScale / pinch.startTransform.scale;
+    const nextScale = gesture.startTransform.scale * (distance / gesture.startDistance);
+    const scaleFactor = nextScale / gesture.startTransform.scale;
 
     usePaintStore.getState().setTransform({
       scale: nextScale,
-      x: midpoint.x - (pinch.startMidpoint.x - pinch.startTransform.x) * scaleFactor,
-      y: midpoint.y - (pinch.startMidpoint.y - pinch.startTransform.y) * scaleFactor,
+      x: midpoint.x - (gesture.startMidpoint.x - gesture.startTransform.x) * scaleFactor,
+      y: midpoint.y - (gesture.startMidpoint.y - gesture.startTransform.y) * scaleFactor,
     });
 
     return true;
@@ -542,17 +526,11 @@ export function CanvasSurface() {
 
   // pointer handlers
   const onPointerDown = (e: React.PointerEvent) => {
-    (e.target as Element).setPointerCapture(e.pointerId);
-    activePointersRef.current.set(e.pointerId, {
-      clientX: e.clientX,
-      clientY: e.clientY,
-      pointerType: e.pointerType,
-    });
-
-    if (e.pointerType === "touch" && syncPinchGesture()) {
-      clearInteractionState();
+    if (e.pointerType === "touch" && touchGestureRef.current) {
       return;
     }
+
+    (e.target as Element).setPointerCapture(e.pointerId);
 
     const st = usePaintStore.getState();
     const isPan = st.tool === "pan" || spaceRef.current || e.button === 1;
@@ -643,16 +621,7 @@ export function CanvasSurface() {
   };
 
   const onPointerMove = (e: React.PointerEvent) => {
-    if (activePointersRef.current.has(e.pointerId)) {
-      activePointersRef.current.set(e.pointerId, {
-        clientX: e.clientX,
-        clientY: e.clientY,
-        pointerType: e.pointerType,
-      });
-    }
-
-    if ((e.pointerType === "touch" && pinchRef.current) || syncPinchGesture()) {
-      clearInteractionState();
+    if (e.pointerType === "touch" && touchGestureRef.current) {
       return;
     }
 
@@ -766,14 +735,39 @@ export function CanvasSurface() {
   };
 
   const onPointerUp = (e: React.PointerEvent) => {
-    activePointersRef.current.delete(e.pointerId);
     if ((e.target as Element).hasPointerCapture(e.pointerId)) {
       (e.target as Element).releasePointerCapture(e.pointerId);
     }
 
-    if (!syncPinchGesture()) {
+    if (!touchGestureRef.current) {
       clearInteractionState();
     }
+  };
+
+  const onTouchStart = (e: React.TouchEvent) => {
+    if (e.touches.length < 2) return;
+
+    e.preventDefault();
+    clearInteractionState();
+    syncTouchGesture(e.touches);
+  };
+
+  const onTouchMove = (e: React.TouchEvent) => {
+    if (e.touches.length < 2) return;
+
+    e.preventDefault();
+    clearInteractionState();
+    syncTouchGesture(e.touches);
+  };
+
+  const onTouchEnd = (e: React.TouchEvent) => {
+    if (e.touches.length >= 2) {
+      e.preventDefault();
+      syncTouchGesture(e.touches);
+      return;
+    }
+
+    touchGestureRef.current = null;
   };
 
   const onWheel = (e: React.WheelEvent) => {
@@ -811,6 +805,10 @@ export function CanvasSurface() {
       onPointerUp={onPointerUp}
       onPointerCancel={onPointerUp}
       onWheel={onWheel}
+      onTouchStart={onTouchStart}
+      onTouchMove={onTouchMove}
+      onTouchEnd={onTouchEnd}
+      onTouchCancel={onTouchEnd}
     />
   );
 }
