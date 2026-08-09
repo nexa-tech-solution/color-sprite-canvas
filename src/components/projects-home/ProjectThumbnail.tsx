@@ -1,4 +1,3 @@
-import { PenLine } from "lucide-react";
 import { useEffect, useRef } from "react";
 import type { PaintProject } from "@/lib/projects";
 import {
@@ -8,17 +7,37 @@ import {
   loadThumbnailImage,
 } from "./utils";
 
+function drawFreeCanvasBackdrop(context: CanvasRenderingContext2D, width: number, height: number) {
+  const gradient = context.createLinearGradient(0, 0, 0, height);
+  gradient.addColorStop(0, "#fdfdff");
+  gradient.addColorStop(1, "#f7faff");
+
+  context.fillStyle = gradient;
+  context.fillRect(0, 0, width, height);
+
+  context.fillStyle = "rgba(191, 203, 227, 0.58)";
+  for (let y = 18; y < height; y += 26) {
+    for (let x = 18; x < width; x += 26) {
+      context.beginPath();
+      context.arc(x, y, 1.2, 0, Math.PI * 2);
+      context.fill();
+    }
+  }
+}
+
 export function ProjectThumbnail({ project }: { project: PaintProject }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const projectRef = useRef(project);
   projectRef.current = project;
 
   const hasContent = project.images.length > 0 || project.strokes.length > 0;
+  const hasBackgroundImage = project.images.some((image) => image.kind !== "sticker");
+  const isFreeCanvasProject = !hasBackgroundImage;
   const thumbnailRevision = project.updatedAt;
 
   useEffect(() => {
     const canvas = canvasRef.current;
-    if (!canvas || !hasContent) return;
+    if (!canvas) return;
 
     const thumbnailProject = projectRef.current;
     let cancelled = false;
@@ -53,8 +72,17 @@ export function ProjectThumbnail({ project }: { project: PaintProject }) {
       );
 
       context.clearRect(0, 0, width, height);
-      context.fillStyle = "#ffffff";
-      context.fillRect(0, 0, width, height);
+      if (isFreeCanvasProject) {
+        drawFreeCanvasBackdrop(context, width, height);
+      } else {
+        context.fillStyle = "#ffffff";
+        context.fillRect(0, 0, width, height);
+      }
+
+      if (!hasContent) {
+        return;
+      }
+
       context.save();
       context.translate(offsetX, offsetY);
       context.scale(scale, scale);
@@ -85,7 +113,7 @@ export function ProjectThumbnail({ project }: { project: PaintProject }) {
     return () => {
       cancelled = true;
     };
-  }, [hasContent, thumbnailRevision]);
+  }, [hasContent, isFreeCanvasProject, thumbnailRevision]);
 
   return (
     <div className="relative aspect-[1/1] overflow-hidden">
@@ -98,11 +126,6 @@ export function ProjectThumbnail({ project }: { project: PaintProject }) {
           aria-label={`Thumbnail of ${project.name}`}
           className="h-full w-full"
         />
-        {!hasContent && (
-          <div className="absolute inset-0 flex items-center justify-center text-[#a4b1c7]">
-            <PenLine className="size-5 opacity-70" />
-          </div>
-        )}
       </div>
     </div>
   );

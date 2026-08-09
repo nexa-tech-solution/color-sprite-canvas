@@ -37,6 +37,7 @@ export interface PaintProject {
   name: string;
   isFavorite?: boolean;
   progress?: number;
+  preferBlankCanvas?: boolean;
   createdAt: string;
   updatedAt: string;
   transform: Transform;
@@ -113,6 +114,7 @@ export function makeBlankProject(overrides: Partial<PaintProject> = {}): PaintPr
     name: normalizeProjectName(overrides.name),
     isFavorite: overrides.isFavorite ?? false,
     progress: overrides.progress ?? 0,
+    preferBlankCanvas: overrides.preferBlankCanvas ?? false,
     createdAt: overrides.createdAt ?? now,
     updatedAt: overrides.updatedAt ?? now,
     transform: overrides.transform ?? { ...initialTransform },
@@ -137,6 +139,7 @@ export function saveProject(project: PaintProject) {
     ...project,
     isFavorite: project.isFavorite ?? existing?.isFavorite ?? false,
     progress: project.progress ?? existing?.progress ?? 0,
+    preferBlankCanvas: project.preferBlankCanvas ?? existing?.preferBlankCanvas ?? false,
     name: normalizeProjectName(project.name),
     updatedAt: project.updatedAt || new Date().toISOString(),
   };

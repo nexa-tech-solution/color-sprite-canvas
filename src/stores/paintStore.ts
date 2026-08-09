@@ -98,10 +98,10 @@ function isRestorableTool(tool: string): tool is Exclude<ToolId, "image"> {
 }
 
 function getInitialTool(): Exclude<ToolId, "image"> {
-  if (typeof window === "undefined") return "pencil";
+  if (typeof window === "undefined") return "pan";
 
   const storedTool = window.localStorage.getItem(TOOL_STORAGE_KEY);
-  return storedTool && isRestorableTool(storedTool) ? storedTool : "pencil";
+  return storedTool && isRestorableTool(storedTool) ? storedTool : "pan";
 }
 
 function persistTool(tool: ToolId) {
@@ -214,6 +214,7 @@ export function projectFromState(state: PaintState): PaintProject | null {
   return {
     id: state.currentProjectId,
     name: state.currentProjectName.trim() || DEFAULT_PROJECT_NAME,
+    preferBlankCanvas: state.preferBlankCanvas,
     createdAt: state.currentProjectCreatedAt,
     updatedAt: new Date().toISOString(),
     transform: { ...state.transform },
@@ -252,29 +253,33 @@ export const usePaintStore = create<PaintState>((set, get) => ({
   future: [],
 
   loadProject: (project) =>
-    set({
-      currentProjectId: project.id,
-      currentProjectName: project.name,
-      currentProjectCreatedAt: project.createdAt,
-      currentProjectUpdatedAt: project.updatedAt,
-      isProjectLoaded: true,
-      transform: clampTransform(
-        { ...project.transform },
-        get().viewport,
-        getBackgroundImage(project.images),
-      ),
-      strokes: project.strokes.map((stroke) => ({
-        ...stroke,
-        points: stroke.points.map((point) => ({ ...point })),
-      })),
-      images: project.images.map((image) => ({ ...image, rotation: image.rotation ?? 0 })),
-      selectedImageId: null,
-      preferBlankCanvas:
-        !project.images.some((image) => image.kind !== "sticker") &&
-        (project.strokes.length > 0 || project.images.length > 0),
-      showWelcome: project.strokes.length === 0 && project.images.length === 0,
-      history: [],
-      future: [],
+    set(() => {
+      const hasBackgroundImage = project.images.some((image) => image.kind !== "sticker");
+      const resolvedPreferBlankCanvas = project.preferBlankCanvas ?? !hasBackgroundImage;
+      const isEmptyProject = project.strokes.length === 0 && project.images.length === 0;
+
+      return {
+        currentProjectId: project.id,
+        currentProjectName: project.name,
+        currentProjectCreatedAt: project.createdAt,
+        currentProjectUpdatedAt: project.updatedAt,
+        isProjectLoaded: true,
+        transform: clampTransform(
+          { ...project.transform },
+          get().viewport,
+          getBackgroundImage(project.images),
+        ),
+        strokes: project.strokes.map((stroke) => ({
+          ...stroke,
+          points: stroke.points.map((point) => ({ ...point })),
+        })),
+        images: project.images.map((image) => ({ ...image, rotation: image.rotation ?? 0 })),
+        selectedImageId: null,
+        preferBlankCanvas: resolvedPreferBlankCanvas,
+        showWelcome: resolvedPreferBlankCanvas ? false : isEmptyProject,
+        history: [],
+        future: [],
+      };
     }),
   setProjectName: (name) => set({ currentProjectName: name.trim() || DEFAULT_PROJECT_NAME }),
   setTool: (tool) => {
