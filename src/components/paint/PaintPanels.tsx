@@ -217,7 +217,7 @@ export function StickerShelf({
               )
             )}
 
-            <div className="paint-scrollbar min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain px-4 pb-4 pt-4 [touch-action:pan-y]">
+            <div className="paint-scrollbar min-h-0 flex-1 space-y-2 overflow-y-auto overscroll-contain px-3 py-2 [touch-action:pan-y]">
               {visibleSubjects.map((subject) => {
                 const stickers = filteredStickers.filter((sticker) => sticker.subject === subject);
                 if (!stickers.length) return null;
@@ -228,11 +228,11 @@ export function StickerShelf({
                     ref={(element) => {
                       subjectRefs.current[subject] = element ?? undefined;
                     }}
-                    className="scroll-mt-2 border-b border-slate-100 pb-4 last:border-b-0"
+                    className="scroll-mt-2 border-b border-slate-100 pb-2 last:border-b-0"
                   >
                     <div
                       className={
-                        selectedSubject ? "" : "mb-2 flex items-center justify-between gap-3"
+                        selectedSubject ? "" : "mb-1 flex items-center justify-between gap-3"
                       }
                     >
                       {!selectedSubject && (
@@ -248,7 +248,7 @@ export function StickerShelf({
                         </button>
                       )}
                     </div>
-                    <div className="grid grid-cols-4 gap-2 sm:grid-cols-5">
+                    <div className="grid grid-cols-4 gap-1.5 sm:grid-cols-5">
                       {stickers.map((sticker) => (
                         <button
                           key={sticker.id}
