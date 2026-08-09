@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { Copy, RotateCcw, Sparkles, Trash2 } from "lucide-react";
+import { RotateCcw, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { imageToColoringPage } from "@/lib/coloringPage";
 import { COLORING_PAGES, coloringPageToSrc, type ColoringPage } from "@/lib/coloringPages";
@@ -234,14 +234,13 @@ export function PropertiesPanel({ isMobile }: { isMobile: boolean }) {
   const selectedId = usePaintStore((state) => state.selectedImageId);
   const image = usePaintStore((state) => state.images.find((item) => item.id === selectedId));
   const updateImage = usePaintStore((state) => state.updateImage);
-  const removeImage = usePaintStore((state) => state.removeImage);
-  const addImage = usePaintStore((state) => state.addImage);
   const pushHistory = usePaintStore((state) => state.pushHistory);
   const [strength, setStrength] = useState(0.75);
   const [processing, setProcessing] = useState(false);
   const isSticker = image?.kind === "sticker";
   const isColoringPage = image?.kind === "coloring-page";
-  const isBackgroundImage = Boolean(image && image.kind !== "sticker");
+  const compactMobileSticker = isMobile && isSticker;
+  const compactMobileColoringPage = isMobile && isColoringPage;
 
   const makeColoringPage = async () => {
     if (!image) return;
@@ -264,11 +263,6 @@ export function PropertiesPanel({ isMobile }: { isMobile: boolean }) {
     updateImage(image.id, { src: image.originalSrc, isOutline: false });
   };
 
-  const duplicate = () => {
-    if (!image) return;
-    addImage({ ...image, id: crypto.randomUUID(), x: image.x + 30, y: image.y + 30 });
-  };
-
   return (
     <AnimatePresence>
       {image && (
@@ -278,19 +272,35 @@ export function PropertiesPanel({ isMobile }: { isMobile: boolean }) {
           exit={{ x: 30, opacity: 0 }}
           transition={{ type: "spring", stiffness: 240, damping: 26 }}
           className={`absolute z-40 flex flex-col gap-4 ${
-            isMobile
-              ? "paint-scrollbar inset-x-3 bottom-24 max-h-[44vh] overflow-y-auto"
-              : "right-4 top-24 w-72 max-w-[calc(100vw-32px)] md:top-1/2 md:-translate-y-1/2"
+            compactMobileSticker
+              ? "paint-scrollbar inset-x-3 bottom-24 max-h-[28vh] overflow-y-auto"
+              : compactMobileColoringPage
+                ? "inset-x-3 bottom-[6.2rem] max-h-[26vh]"
+                : isMobile
+                  ? "paint-scrollbar inset-x-3 bottom-24 max-h-[44vh] overflow-y-auto"
+                  : "right-4 top-24 w-72 max-w-[calc(100vw-32px)] md:top-1/2 md:-translate-y-1/2"
           }`}
         >
           <div
             className={`border border-slate-100 bg-paint-panel/95 shadow-soft backdrop-blur-xl ${
-              isMobile ? "rounded-[1.5rem] p-4" : "rounded-[2rem] p-5"
+              compactMobileSticker
+                ? "rounded-[1.25rem] p-3"
+                : compactMobileColoringPage
+                  ? "rounded-[1.2rem] p-2.5"
+                  : isMobile
+                    ? "rounded-[1.5rem] p-4"
+                    : "rounded-[2rem] p-5"
             }`}
           >
             <h3
               className={`flex items-center gap-2 font-bold uppercase tracking-widest text-slate-400 ${
-                isMobile ? "mb-3 text-[11px]" : "mb-4 text-xs"
+                compactMobileSticker
+                  ? "mb-2 text-[10px]"
+                  : compactMobileColoringPage
+                    ? "mb-2 text-[10px]"
+                    : isMobile
+                      ? "mb-3 text-[11px]"
+                      : "mb-4 text-xs"
               }`}
             >
               <Sparkles className="size-3" />
@@ -322,14 +332,29 @@ export function PropertiesPanel({ isMobile }: { isMobile: boolean }) {
             )}
 
             {isSticker && (
-              <div className="mb-4 rounded-2xl bg-amber-50 px-4 py-3 text-xs font-medium leading-relaxed text-amber-700 sm:text-sm">
-                Move it with Select, duplicate it, or soften it with opacity.
+              <div
+                className={`mb-4 bg-amber-50 font-medium text-amber-700 ${
+                  compactMobileSticker
+                    ? "rounded-xl px-3 py-2 text-[11px] leading-snug"
+                    : "rounded-2xl px-4 py-3 text-xs leading-relaxed sm:text-sm"
+                }`}
+              >
+                {compactMobileSticker
+                  ? "Move with Select. Duplicate it or lower opacity."
+                  : "Move it with Select, duplicate it, or soften it with opacity."}
               </div>
             )}
 
             {isColoringPage && (
-              <div className="mb-4 rounded-2xl bg-cyan-50 px-4 py-3 text-xs font-medium leading-relaxed text-cyan-800 sm:text-sm">
-                This page is locked in place so kids only pan inside the picture while they color.
+              <div
+                className={`mb-4 bg-cyan-50 font-medium text-cyan-800 ${
+                  compactMobileColoringPage
+                    ? "rounded-xl px-2.5 py-2 text-[10.5px] leading-snug"
+                    : "rounded-2xl px-4 py-3 text-xs leading-relaxed sm:text-sm"
+                }`}
+              >
+                Pick another page from Coloring book or import a new picture to change the
+                background.
               </div>
             )}
 
@@ -340,7 +365,11 @@ export function PropertiesPanel({ isMobile }: { isMobile: boolean }) {
               </div>
             )}
 
-            <div className="space-y-4">
+            <div
+              className={
+                compactMobileSticker || compactMobileColoringPage ? "space-y-3" : "space-y-4"
+              }
+            >
               {!isSticker && !isColoringPage && (
                 <Slider
                   label="Line Strength"
@@ -348,6 +377,7 @@ export function PropertiesPanel({ isMobile }: { isMobile: boolean }) {
                   onChange={setStrength}
                   min={0.2}
                   max={1}
+                  compact={compactMobileSticker}
                 />
               )}
               <Slider
@@ -357,36 +387,9 @@ export function PropertiesPanel({ isMobile }: { isMobile: boolean }) {
                 onChangeStart={pushHistory}
                 min={0.1}
                 max={1}
+                compact={compactMobileSticker || compactMobileColoringPage}
               />
             </div>
-          </div>
-
-          <div
-            className={`flex gap-2 border border-slate-100 bg-paint-panel/95 shadow-soft backdrop-blur-xl ${
-              isMobile ? "rounded-[1.5rem] p-2" : "rounded-[2rem] p-3"
-            }`}
-          >
-            {isBackgroundImage ? (
-              <div className="flex-1 rounded-2xl bg-slate-50 px-4 py-3 text-center text-xs font-medium leading-relaxed text-slate-500">
-                Pick another page from Coloring book or import a new picture to change the
-                background.
-              </div>
-            ) : (
-              <>
-                <button
-                  onClick={duplicate}
-                  className="flex flex-1 items-center justify-center gap-2 rounded-2xl py-2.5 text-sm text-slate-600 hover:bg-slate-50"
-                >
-                  <Copy className="size-4" /> Duplicate
-                </button>
-                <button
-                  onClick={() => removeImage(image.id)}
-                  className="flex flex-1 items-center justify-center gap-2 rounded-2xl py-2.5 text-sm text-rose-500 hover:bg-rose-50"
-                >
-                  <Trash2 className="size-4" /> Delete
-                </button>
-              </>
-            )}
           </div>
         </motion.aside>
       )}
@@ -401,6 +404,7 @@ function Slider({
   onChangeStart,
   min,
   max,
+  compact = false,
 }: {
   label: string;
   value: number;
@@ -408,6 +412,7 @@ function Slider({
   onChangeStart?: () => void;
   min: number;
   max: number;
+  compact?: boolean;
 }) {
   const changingRef = useRef(false);
 
@@ -416,8 +421,8 @@ function Slider({
   };
 
   return (
-    <div className="space-y-2">
-      <div className="flex justify-between text-xs font-medium">
+    <div className={compact ? "space-y-1.5" : "space-y-2"}>
+      <div className={`flex justify-between font-medium ${compact ? "text-[11px]" : "text-xs"}`}>
         <span>{label}</span>
         <span className="text-slate-400">{Math.round(value * 100)}%</span>
       </div>
@@ -438,7 +443,7 @@ function Slider({
         onPointerUp={finishChange}
         onPointerCancel={finishChange}
         onBlur={finishChange}
-        className="w-full cursor-pointer accent-pink-400"
+        className={`w-full cursor-pointer accent-pink-400 ${compact ? "h-5" : ""}`}
       />
     </div>
   );
