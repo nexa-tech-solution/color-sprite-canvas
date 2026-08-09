@@ -1,8 +1,15 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { usePaintStore, type Point, type CanvasImage, type Transform } from "@/stores/paintStore";
+import {
+  usePaintStore,
+  type Point,
+  type CanvasImage,
+  type ToolId,
+  type Transform,
+} from "@/stores/paintStore";
 
 type ResizeHandle = "nw" | "ne" | "sw" | "se";
 type SelectionHandle = ResizeHandle | "rotate";
+type TouchPointList = ArrayLike<{ clientX: number; clientY: number }>;
 
 // Cache HTMLImageElement instances by src
 const imgCache = new Map<string, HTMLImageElement>();
@@ -139,6 +146,75 @@ function clampPointToImage(point: Point, image: CanvasImage | null) {
     x: clamp(point.x, image.x, image.x + image.width),
     y: clamp(point.y, image.y, image.y + image.height),
   };
+}
+
+function getDrawCursor(tool: ToolId, color: string) {
+  const cursorMap: Record<
+    "pencil" | "brush" | "marker" | "eraser",
+    { svg: string; x: number; y: number }
+  > = {
+    pencil: {
+      svg: `
+        <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
+          <g transform="rotate(28 16 16)">
+            <rect x="12.4" y="3.4" width="7.2" height="18.4" rx="3.6" fill="${color}" stroke="#7c2d5b" stroke-width="1.1"/>
+            <rect x="13.1" y="5.2" width="5.8" height="2.8" rx="1.4" fill="#ffd1e8" opacity="0.95"/>
+            <path d="M12 21.2h8L16 29.6z" fill="#f5dcc4" stroke="#7c2d5b" stroke-width="1.1" stroke-linejoin="round"/>
+            <path d="M14.7 25.8h2.6L16 29.6z" fill="#1f2937"/>
+          </g>
+        </svg>
+      `,
+      x: 16,
+      y: 29,
+    },
+    brush: {
+      svg: `
+        <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
+          <g transform="translate(4 2) rotate(16 12 12)">
+            <path d="m14.622 17.897-10.68-2.913" fill="none" stroke="#7c2d5b" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M18.376 2.622a1 1 0 1 1 3.002 3.002L17.36 9.643a.5.5 0 0 0 0 .707l.944.944a2.41 2.41 0 0 1 0 3.408l-.944.944a.5.5 0 0 1-.707 0L8.354 7.348a.5.5 0 0 1 0-.707l.944-.944a2.41 2.41 0 0 1 3.408 0l.944.944a.5.5 0 0 0 .707 0z" fill="${color}" fill-opacity="0.68" stroke="#7c2d5b" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M9 8c-1.804 2.71-3.97 3.46-6.583 3.948a.507.507 0 0 0-.302.819l7.32 8.883a1 1 0 0 0 1.185.204C12.735 20.405 16 16.792 16 15" fill="#f5dcc4" stroke="#7c2d5b" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/>
+          </g>
+        </svg>
+      `,
+      x: 6,
+      y: 11,
+    },
+    marker: {
+      svg: `
+        <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
+          <g transform="rotate(32 16 16)">
+            <rect x="11.6" y="4" width="8.8" height="14.8" rx="2.6" fill="${color}" stroke="#7c2d5b" stroke-width="1.1"/>
+            <rect x="12.6" y="6" width="6.8" height="2.3" rx="1.1" fill="#ffd1e8" opacity="0.95"/>
+            <path d="M11.8 18.8h8.4l-0.8 5-3.4 4-3.4-4z" fill="#f3f4f6" stroke="#7c2d5b" stroke-width="1.1" stroke-linejoin="round"/>
+            <path d="M13 23.8h6l-3 4z" fill="#1f2937"/>
+          </g>
+        </svg>
+      `,
+      x: 16,
+      y: 28,
+    },
+    eraser: {
+      svg: `
+        <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
+          <g transform="translate(2 1)">
+            <path d="M10.2 22.6 18.9 13.9a2.4 2.4 0 0 1 3.4 0l4.8 4.8a2.4 2.4 0 0 1 0 3.4l-8.7 8.7a2.4 2.4 0 0 1-3.4 0l-4.8-4.8a2.4 2.4 0 0 1 0-3.4z" fill="#ffffff" stroke="#94a3b8" stroke-width="1.2" stroke-linejoin="round"/>
+            <path d="M10.2 22.6 18.9 13.9a2.4 2.4 0 0 1 3.4 0l2.4 2.4-12.1 12.1-2.4-2.4a2.4 2.4 0 0 1 0-3.4z" fill="#fecdd3" stroke="#94a3b8" stroke-width="1.2" stroke-linejoin="round"/>
+            <path d="M14.9 30.8h9.4" fill="none" stroke="#94a3b8" stroke-width="1.2" stroke-linecap="round"/>
+          </g>
+        </svg>
+      `,
+      x: 18,
+      y: 26,
+    },
+  };
+
+  if (!["pencil", "brush", "marker", "eraser"].includes(tool)) {
+    return "crosshair";
+  }
+
+  const { svg, x, y } = cursorMap[tool as "pencil" | "brush" | "marker" | "eraser"];
+  return `url("data:image/svg+xml,${encodeURIComponent(svg)}") ${x} ${y}, crosshair`;
 }
 
 export function CanvasSurface() {
@@ -449,7 +525,7 @@ export function CanvasSurface() {
     };
   }
 
-  function syncTouchGesture(touches: TouchList) {
+  function syncTouchGesture(touches: TouchPointList) {
     if (touches.length < 2) {
       touchGestureRef.current = null;
       return false;
@@ -793,7 +869,7 @@ export function CanvasSurface() {
             : hoveredHandle === "rotate"
               ? "grab"
               : "default"
-        : "crosshair";
+        : getDrawCursor(s.tool, s.color);
 
   return (
     <canvas

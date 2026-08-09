@@ -11,6 +11,8 @@ import {
 export type ToolId = "select" | "pan" | "pencil" | "brush" | "marker" | "eraser" | "image";
 export type { CanvasImage, PaintProject, Point, Stroke, Transform };
 
+const TOOL_STORAGE_KEY = "paint.selected-tool";
+
 interface Snapshot {
   strokes: Stroke[];
   images: CanvasImage[];
@@ -88,6 +90,22 @@ interface PaintState {
 
 const initialTransform: Transform = { x: 0, y: 0, scale: 1 };
 const initialViewport: Viewport = { width: 0, height: 0 };
+
+function isRestorableTool(tool: string): tool is Exclude<ToolId, "image"> {
+  return ["select", "pan", "pencil", "brush", "marker", "eraser"].includes(tool);
+}
+
+function getInitialTool(): Exclude<ToolId, "image"> {
+  if (typeof window === "undefined") return "pencil";
+
+  const storedTool = window.localStorage.getItem(TOOL_STORAGE_KEY);
+  return storedTool && isRestorableTool(storedTool) ? storedTool : "pencil";
+}
+
+function persistTool(tool: ToolId) {
+  if (typeof window === "undefined" || tool === "image") return;
+  window.localStorage.setItem(TOOL_STORAGE_KEY, tool);
+}
 
 function getViewportFrame(viewport: Viewport): ViewportFrame {
   const isMobile = viewport.width < 768;
@@ -199,7 +217,7 @@ export const usePaintStore = create<PaintState>((set, get) => ({
   currentProjectUpdatedAt: null,
   isProjectLoaded: false,
 
-  tool: "brush",
+  tool: getInitialTool(),
   color: "#f472b6",
   brushSize: 14,
   opacity: 1,
@@ -240,8 +258,10 @@ export const usePaintStore = create<PaintState>((set, get) => ({
       future: [],
     }),
   setProjectName: (name) => set({ currentProjectName: name.trim() || DEFAULT_PROJECT_NAME }),
-  setTool: (tool) =>
-    set({ tool, selectedImageId: tool === "select" ? get().selectedImageId : null }),
+  setTool: (tool) => {
+    persistTool(tool);
+    set({ tool, selectedImageId: tool === "select" ? get().selectedImageId : null });
+  },
   setColor: (color) =>
     set((s) => ({
       color,

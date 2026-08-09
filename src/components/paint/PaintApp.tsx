@@ -44,7 +44,6 @@ export function PaintApp() {
           keepWelcome: true,
           skipHistory: true,
         });
-        usePaintStore.getState().setTool("brush");
       })
       .catch(() => {
         // Ignore background preload failures so the editor still opens.

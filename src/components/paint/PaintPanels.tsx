@@ -136,7 +136,6 @@ export function ColoringPageShelf({
   const addColoringPage = async (page: ColoringPage) => {
     const background = await buildColoringBookBackground(page);
     setBackgroundImage(background);
-    setTool("brush");
     onClose();
     toast.success(`${page.name} is ready to color`);
   };
