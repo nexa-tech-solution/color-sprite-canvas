@@ -1,9 +1,21 @@
 export interface Sticker {
   id: string;
   name: string;
-  category: "Cute" | "Nature" | "Play";
+  subject: StickerSubject;
   src: string;
 }
+
+export const STICKER_SUBJECTS = [
+  "Happy",
+  "Love",
+  "Animals",
+  "Food & Drink",
+  "Nature",
+  "Activities",
+  "Things",
+] as const;
+
+export type StickerSubject = (typeof STICKER_SUBJECTS)[number];
 
 const importedStickerModules = import.meta.glob<string>(
   "../assets/stickers/**/*.{png,jpg,jpeg,webp}",
@@ -66,12 +78,40 @@ const stickerOrder = [
   "kite",
 ];
 
-function categoryFromPath(path: string): Sticker["category"] {
-  const folder = path.split("/").at(-2)?.toLowerCase();
-  if (folder === "nature") return "Nature";
-  if (folder === "play") return "Play";
-  return "Cute";
-}
+const stickerSubjects: Record<string, StickerSubject> = {
+  "smile-face": "Happy",
+  "happy-star": "Happy",
+  "rainbow-cloud": "Happy",
+  "crescent-moon": "Happy",
+  heart: "Love",
+  bunny: "Animals",
+  "panda-face": "Animals",
+  "kitty-face": "Animals",
+  "teddy-bear": "Animals",
+  fish: "Animals",
+  bee: "Animals",
+  ladybug: "Animals",
+  butterfly: "Animals",
+  lollipop: "Food & Drink",
+  strawberry: "Food & Drink",
+  cupcake: "Food & Drink",
+  mushroom: "Food & Drink",
+  acorn: "Nature",
+  flower: "Nature",
+  tulip: "Nature",
+  leaf: "Nature",
+  sun: "Nature",
+  "cloud-rain": "Nature",
+  balloon: "Activities",
+  kite: "Activities",
+  "soccer-ball": "Activities",
+  drum: "Activities",
+  "magic-wand": "Activities",
+  "gift-box": "Things",
+  diamond: "Things",
+  rocket: "Things",
+  "toy-train": "Things",
+};
 
 function idFromPath(path: string) {
   return (
@@ -88,7 +128,7 @@ export const STICKERS: Sticker[] = Object.entries(importedStickerModules)
     return {
       id,
       name: stickerNames[id] ?? id.replace(/[-_]+/g, " "),
-      category: categoryFromPath(path),
+      subject: stickerSubjects[id] ?? "Things",
       src,
     };
   })

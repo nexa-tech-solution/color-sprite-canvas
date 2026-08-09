@@ -1,10 +1,31 @@
 import { useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { BookOpen, RotateCcw, Sparkles } from "lucide-react";
+import {
+  ArrowLeft,
+  BookOpen,
+  Drum,
+  Heart,
+  IceCreamBowl,
+  Leaf,
+  Package,
+  PawPrint,
+  Search,
+  Smile,
+  X,
+  RotateCcw,
+  Sparkles,
+} from "lucide-react";
 import { toast } from "sonner";
 import { imageToColoringPage } from "@/lib/coloringPage";
 import { COLORING_PAGES, coloringPageToSrc, type ColoringPage } from "@/lib/coloringPages";
-import { getStickerDimensions, STICKERS, type Sticker, stickerToSrc } from "@/lib/stickers";
+import {
+  getStickerDimensions,
+  STICKERS,
+  STICKER_SUBJECTS,
+  type Sticker,
+  type StickerSubject,
+  stickerToSrc,
+} from "@/lib/stickers";
 import { usePaintStore } from "@/stores/paintStore";
 import {
   AlertDialog,
@@ -30,7 +51,31 @@ export function StickerShelf({
   const addImage = usePaintStore((state) => state.addImage);
   const setTool = usePaintStore((state) => state.setTool);
   const transform = usePaintStore((state) => state.transform);
-  const categories: Sticker["category"][] = ["Cute", "Nature", "Play"];
+  const [query, setQuery] = useState("");
+  const [selectedSubject, setSelectedSubject] = useState<StickerSubject | null>(null);
+  const [activeSubject, setActiveSubject] = useState<StickerSubject>("Happy");
+  const subjectRefs = useRef<Partial<Record<StickerSubject, HTMLElement>>>({});
+  const normalizedQuery = query.trim().toLowerCase();
+  const filteredStickers = normalizedQuery
+    ? STICKERS.filter((sticker) =>
+        `${sticker.name} ${sticker.subject}`.toLowerCase().includes(normalizedQuery),
+      )
+    : STICKERS;
+  const visibleSubjects = selectedSubject ? [selectedSubject] : STICKER_SUBJECTS;
+  const subjectIcons = {
+    Happy: Smile,
+    Love: Heart,
+    Animals: PawPrint,
+    "Food & Drink": IceCreamBowl,
+    Nature: Leaf,
+    Activities: Drum,
+    Things: Package,
+  } satisfies Record<StickerSubject, typeof Smile>;
+
+  const showSubject = (subject: StickerSubject) => {
+    setActiveSubject(subject);
+    subjectRefs.current[subject]?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
 
   const addSticker = async (sticker: Sticker) => {
     const src = stickerToSrc(sticker);
@@ -81,47 +126,159 @@ export function StickerShelf({
           <div className="flex h-full flex-col overflow-hidden rounded-[1.75rem] border border-slate-100 bg-paint-panel/95 shadow-float backdrop-blur-xl">
             <div className="flex shrink-0 items-center justify-between gap-3 p-4 pb-3">
               <div>
-                <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-amber-500">
+                <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-blue-500">
                   Sticker book
                 </p>
-                <h2 className="text-lg font-semibold text-slate-800">Pick a sticker</h2>
+                <h2 className="text-xl font-semibold tracking-tight text-slate-800">
+                  Pick a sticker
+                </h2>
               </div>
               <button
                 type="button"
                 onClick={onClose}
-                className="flex h-8 shrink-0 cursor-pointer items-center justify-center rounded-xl bg-slate-50 px-3 text-xs font-semibold text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700"
+                aria-label="Close sticker picker"
+                className="flex size-9 shrink-0 cursor-pointer items-center justify-center rounded-full bg-slate-100 text-slate-500 transition-colors hover:bg-slate-200 hover:text-slate-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500"
               >
-                Close
+                <X className="size-4" />
               </button>
             </div>
 
-            <div className="paint-scrollbar min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain px-4 pb-4 [touch-action:pan-y]">
-              {categories.map((category) => (
-                <section key={category}>
-                  <h3 className="mb-2 text-[11px] font-bold uppercase tracking-[0.16em] text-slate-400">
-                    {category}
-                  </h3>
-                  <div className="grid grid-cols-4 gap-2">
-                    {STICKERS.filter((sticker) => sticker.category === category).map((sticker) => (
+            <div className="shrink-0 px-4 pb-3">
+              <label htmlFor="sticker-search" className="sr-only">
+                Search stickers
+              </label>
+              <div className="flex items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-3 text-slate-400 transition-colors focus-within:border-blue-300 focus-within:bg-white focus-within:ring-2 focus-within:ring-blue-100">
+                <Search className="size-4 shrink-0" aria-hidden="true" />
+                <input
+                  id="sticker-search"
+                  type="search"
+                  value={query}
+                  onChange={(event) => setQuery(event.target.value)}
+                  placeholder={
+                    selectedSubject
+                      ? `Search ${selectedSubject.toLowerCase()} stickers`
+                      : "Search stickers"
+                  }
+                  className="h-10 min-w-0 flex-1 bg-transparent text-sm font-medium text-slate-700 outline-none placeholder:font-normal placeholder:text-slate-400"
+                />
+                {query && (
+                  <button
+                    type="button"
+                    onClick={() => setQuery("")}
+                    aria-label="Clear sticker search"
+                    className="flex size-6 cursor-pointer items-center justify-center rounded-full text-slate-400 transition-colors hover:bg-slate-200 hover:text-slate-600"
+                  >
+                    <X className="size-3.5" />
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {selectedSubject ? (
+              <div className="flex shrink-0 items-center gap-3 border-y border-slate-100 bg-blue-50/40 px-4 py-2.5">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setQuery("");
+                    setSelectedSubject(null);
+                  }}
+                  className="flex size-8 shrink-0 cursor-pointer items-center justify-center rounded-xl border-0 bg-transparent text-slate-500 shadow-none transition-colors hover:bg-blue-50 hover:text-blue-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500"
+                  aria-label="Back to all sticker subjects"
+                >
+                  <ArrowLeft className="size-4" />
+                </button>
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-bold text-slate-700">{selectedSubject}</p>
+                </div>
+              </div>
+            ) : (
+              !normalizedQuery && (
+                <div className="paint-scrollbar flex shrink-0 snap-x snap-mandatory gap-1 overflow-x-auto border-y border-slate-100 px-2 [touch-action:pan-x]">
+                  {STICKER_SUBJECTS.map((subject) => {
+                    const Icon = subjectIcons[subject];
+                    return (
                       <button
-                        key={sticker.id}
+                        key={subject}
                         type="button"
-                        onClick={() => addSticker(sticker)}
-                        title={sticker.name}
-                        aria-label={`Add ${sticker.name} sticker`}
-                        className="flex aspect-square cursor-pointer items-center justify-center rounded-2xl border border-slate-100 bg-white p-2 shadow-none transition-transform hover:-translate-y-0.5 hover:bg-slate-50 hover:shadow-[0_10px_20px_-18px_rgba(15,23,42,0.22)] active:scale-95"
+                        onClick={() => showSubject(subject)}
+                        title={subject}
+                        aria-label={`Jump to ${subject} stickers`}
+                        className={`relative flex size-12 shrink-0 snap-start cursor-pointer items-center justify-center text-slate-400 transition-colors hover:text-blue-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 after:absolute after:inset-x-1 after:bottom-0 after:h-0.5 after:rounded-full after:bg-blue-600 after:transition-transform ${
+                          activeSubject === subject
+                            ? "text-blue-600 after:scale-x-100"
+                            : "after:scale-x-0"
+                        }`}
                       >
-                        <img
-                          src={stickerToSrc(sticker)}
-                          alt=""
-                          className="max-h-full max-w-full object-contain"
-                          draggable={false}
-                        />
+                        <Icon className="size-5 stroke-[1.8]" aria-hidden="true" />
                       </button>
-                    ))}
-                  </div>
-                </section>
-              ))}
+                    );
+                  })}
+                </div>
+              )
+            )}
+
+            <div className="paint-scrollbar min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain px-4 pb-4 pt-4 [touch-action:pan-y]">
+              {visibleSubjects.map((subject) => {
+                const stickers = filteredStickers.filter((sticker) => sticker.subject === subject);
+                if (!stickers.length) return null;
+
+                return (
+                  <section
+                    key={subject}
+                    ref={(element) => {
+                      subjectRefs.current[subject] = element ?? undefined;
+                    }}
+                    className="scroll-mt-2 border-b border-slate-100 pb-4 last:border-b-0"
+                  >
+                    <div
+                      className={
+                        selectedSubject ? "" : "mb-2 flex items-center justify-between gap-3"
+                      }
+                    >
+                      {!selectedSubject && (
+                        <h3 className="text-sm font-bold text-slate-700">{subject}</h3>
+                      )}
+                      {!selectedSubject && (
+                        <button
+                          type="button"
+                          onClick={() => setSelectedSubject(subject)}
+                          className="cursor-pointer text-xs font-bold text-blue-600 transition-colors hover:text-blue-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500"
+                        >
+                          See all
+                        </button>
+                      )}
+                    </div>
+                    <div className="grid grid-cols-4 gap-2 sm:grid-cols-5">
+                      {stickers.map((sticker) => (
+                        <button
+                          key={sticker.id}
+                          type="button"
+                          onClick={() => addSticker(sticker)}
+                          title={sticker.name}
+                          aria-label={`Add ${sticker.name} sticker`}
+                          className="flex aspect-square cursor-pointer items-center justify-center p-2 transition-transform duration-200 hover:-translate-y-0.5 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 active:scale-95"
+                        >
+                          <img
+                            src={stickerToSrc(sticker)}
+                            alt=""
+                            className="max-h-full max-w-full object-contain"
+                            draggable={false}
+                          />
+                        </button>
+                      ))}
+                    </div>
+                  </section>
+                );
+              })}
+              {filteredStickers.length === 0 && (
+                <div className="flex min-h-40 flex-col items-center justify-center rounded-3xl bg-slate-50 px-6 text-center">
+                  <Search className="mb-3 size-6 text-slate-300" aria-hidden="true" />
+                  <p className="text-sm font-bold text-slate-700">No stickers found</p>
+                  <p className="mt-1 text-xs leading-relaxed text-slate-500">
+                    Try searching for an animal, food, or a color.
+                  </p>
+                </div>
+              )}
             </div>
           </div>
         </motion.aside>
