@@ -46,6 +46,9 @@ export function StickerShelf({
       opacity: 1,
     });
     setTool("select");
+    if (isMobile) {
+      onClose();
+    }
     toast.success(`${sticker.name} sticker added`);
   };
 
