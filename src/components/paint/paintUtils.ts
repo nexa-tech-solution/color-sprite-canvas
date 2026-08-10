@@ -85,6 +85,46 @@ export function getBackgroundImage(images: CanvasImage[]) {
   return images.find((image) => image.kind !== "sticker") ?? null;
 }
 
+function canvasToBlob(canvas: HTMLCanvasElement): Promise<Blob> {
+  return new Promise((resolve, reject) => {
+    canvas.toBlob((blob) => {
+      if (blob) {
+        resolve(blob);
+        return;
+      }
+
+      reject(new Error("Canvas image could not be created"));
+    }, "image/png");
+  });
+}
+
+async function saveExport(blob: Blob, filename: string) {
+  const file = new File([blob], filename, { type: "image/png" });
+
+  // Mobile browsers do not consistently honour an anchor download, especially
+  // when it originates in an embedded WebView. Prefer their native share sheet.
+  if (navigator.share && (!navigator.canShare || navigator.canShare({ files: [file] }))) {
+    try {
+      await navigator.share({ files: [file], title: "My coloring" });
+      return;
+    } catch (error) {
+      // A dismissed share sheet is not an export failure. Other errors fall back
+      // to a browser download below.
+      if (error instanceof DOMException && error.name === "AbortError") return;
+    }
+  }
+
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = filename;
+  anchor.style.display = "none";
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 1_000);
+}
+
 export async function exportCanvas() {
   const state = usePaintStore.getState();
   const { strokes, images } = state;
@@ -224,10 +264,11 @@ export async function exportCanvas() {
     ctx.drawImage(loaded, image.x, image.y, image.width, image.height);
   }
 
-  const url = canvas.toDataURL("image/png");
-  const anchor = document.createElement("a");
-  anchor.href = url;
-  anchor.download = `${PAINT_ACTIONS.exportFilePrefix}-${Date.now()}.png`;
-  anchor.click();
-  toast.success("Exported!");
+  try {
+    const filename = `${PAINT_ACTIONS.exportFilePrefix}-${Date.now()}.png`;
+    await saveExport(await canvasToBlob(canvas), filename);
+    toast.success("Exported!");
+  } catch {
+    toast.error("Export failed. Please try again.");
+  }
 }
