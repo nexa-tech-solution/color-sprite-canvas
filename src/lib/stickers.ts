@@ -54,6 +54,12 @@ const stickerNames: Record<string, string> = {
 
 const stickerOrder = [
   "smile-face",
+  "angel_smile",
+  "angry_steam",
+  "big_grin",
+  "blowing_a_kiss",
+  "blushing_smile",
+  "clown_face",
   "heart",
   "bunny",
   "panda-face",
@@ -89,6 +95,12 @@ const stickerOrder = [
 
 const stickerSubjects: Record<string, StickerSubject> = {
   "smile-face": "Happy",
+  angel_smile: "Happy",
+  angry_steam: "Happy",
+  big_grin: "Happy",
+  blowing_a_kiss: "Happy",
+  blushing_smile: "Happy",
+  clown_face: "Happy",
   "happy-star": "Nature",
   "rainbow-cloud": "Nature",
   "crescent-moon": "Nature",
