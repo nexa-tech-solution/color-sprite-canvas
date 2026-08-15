@@ -7,6 +7,7 @@ import {
   Crosshair,
   Download,
   ImagePlus,
+  Loader2,
   Minus,
   Plus,
   Redo2,
@@ -75,12 +76,24 @@ export function TopBar({
   const [freeCanvasConfirmOpen, setFreeCanvasConfirmOpen] = useState(false);
   const [importConfirmOpen, setImportConfirmOpen] = useState(false);
   const [pendingImportFile, setPendingImportFile] = useState<File | null>(null);
+  const [isExporting, setIsExporting] = useState(false);
 
   useEffect(() => {
     setDraftName(projectName);
   }, [projectName]);
 
   const onImport = () => openImagePicker(fileRef.current);
+
+  const handleExport = async () => {
+    if (isExporting) return;
+
+    setIsExporting(true);
+    try {
+      await exportCanvas();
+    } finally {
+      setIsExporting(false);
+    }
+  };
   const commitProjectName = () => {
     setProjectName(draftName.trim() || DEFAULT_PROJECT_NAME);
   };
@@ -218,8 +231,17 @@ export function TopBar({
               >
                 <Crosshair className={`size-3.5 ${!hasBackgroundImage ? "text-cyan-700" : ""}`} />
               </IconBtn>
-              <IconBtn onClick={exportCanvas} label="Export canvas" className="size-8 rounded-full">
-                <Download className="size-3.5 text-violet-700" />
+              <IconBtn
+                onClick={handleExport}
+                disabled={isExporting}
+                label={isExporting ? "Exporting canvas" : "Export canvas"}
+                className="size-8 rounded-full"
+              >
+                {isExporting ? (
+                  <Loader2 className="size-3.5 animate-spin text-violet-700" />
+                ) : (
+                  <Download className="size-3.5 text-violet-700" />
+                )}
               </IconBtn>
             </div>
           )}
@@ -275,10 +297,19 @@ export function TopBar({
               <BookOpen className="size-4" /> Pages
             </button>
             <button
-              onClick={exportCanvas}
-              className="flex items-center gap-2 rounded-full border border-violet-200/70 bg-violet-100 px-6 py-2.5 text-sm font-medium text-violet-700 shadow-[0_14px_24px_-18px_rgba(139,92,246,0.75)] transition-all hover:bg-violet-200/80"
+              onClick={handleExport}
+              disabled={isExporting}
+              className="flex items-center gap-2 rounded-full border border-violet-200/70 bg-violet-100 px-6 py-2.5 text-sm font-medium text-violet-700 shadow-[0_14px_24px_-18px_rgba(139,92,246,0.75)] transition-all hover:bg-violet-200/80 disabled:cursor-not-allowed disabled:opacity-70 disabled:hover:bg-violet-100"
             >
-              <Download className="size-4" /> Export
+              {isExporting ? (
+                <>
+                  <Loader2 className="size-4 animate-spin" /> Exporting…
+                </>
+              ) : (
+                <>
+                  <Download className="size-4" /> Export
+                </>
+              )}
             </button>
           </div>
         )}

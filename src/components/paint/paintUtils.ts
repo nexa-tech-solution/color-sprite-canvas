@@ -1,5 +1,6 @@
 import { toast } from "sonner";
 import { coloringPageToSrc, type ColoringPage } from "@/lib/coloringPages";
+import { isNativeShell, saveImageNative } from "@/lib/nativeBridge";
 import { usePaintStore, type CanvasImage } from "@/stores/paintStore";
 import { PAINT_ACTIONS } from "./paintConstants";
 
@@ -98,21 +99,70 @@ function canvasToBlob(canvas: HTMLCanvasElement): Promise<Blob> {
   });
 }
 
-async function saveExport(blob: Blob, filename: string) {
+function blobToDataUrl(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = () => reject(reader.error ?? new Error("Image could not be encoded"));
+    reader.readAsDataURL(blob);
+  });
+}
+
+/**
+ * Android's WebView ignores the `download` attribute and refuses to hand `blob:`
+ * URLs to the download manager, so the anchor below silently does nothing there.
+ * Only the native shell can save a file on that platform.
+ */
+function anchorDownloadIsUseless() {
+  return isNativeShell() && /android/i.test(navigator.userAgent);
+}
+
+/**
+ * The share sheet is the right answer on phones and tablets, where a plain
+ * download either fails or drops the file somewhere the user cannot find.
+ * Desktops have a real download flow, so they should not get a share popup —
+ * even though macOS Safari and Windows Chrome both expose `navigator.share`.
+ */
+function prefersShareSheet() {
+  const ua = navigator.userAgent;
+  const isTouchMac = /Macintosh/.test(ua) && navigator.maxTouchPoints > 1; // iPadOS
+
+  return /Android|iPhone|iPad|iPod/i.test(ua) || isTouchMac;
+}
+
+type ExportOutcome = "saved" | "cancelled" | "failed";
+
+async function saveExport(blob: Blob, filename: string): Promise<ExportOutcome> {
+  // The shell can always write to the camera roll, and on Android it is the only
+  // route that works at all — so try it before any browser API.
+  if (isNativeShell()) {
+    const outcome = await saveImageNative({ filename, dataUrl: await blobToDataUrl(blob) });
+    if (outcome === "saved") return "saved";
+    if (outcome === "cancelled") return "cancelled";
+    // "unsupported" — an older shell without the SAVE_IMAGE handler. Fall through
+    // to the browser paths, which still work inside WKWebView.
+  }
+
   const file = new File([blob], filename, { type: "image/png" });
 
   // Mobile browsers do not consistently honour an anchor download, especially
   // when it originates in an embedded WebView. Prefer their native share sheet.
-  if (navigator.share && (!navigator.canShare || navigator.canShare({ files: [file] }))) {
+  if (
+    prefersShareSheet() &&
+    navigator.share &&
+    (!navigator.canShare || navigator.canShare({ files: [file] }))
+  ) {
     try {
       await navigator.share({ files: [file], title: "My coloring" });
-      return;
+      return "saved";
     } catch (error) {
       // A dismissed share sheet is not an export failure. Other errors fall back
       // to a browser download below.
-      if (error instanceof DOMException && error.name === "AbortError") return;
+      if (error instanceof DOMException && error.name === "AbortError") return "cancelled";
     }
   }
+
+  if (anchorDownloadIsUseless()) return "failed";
 
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement("a");
@@ -123,6 +173,8 @@ async function saveExport(blob: Blob, filename: string) {
   anchor.click();
   anchor.remove();
   window.setTimeout(() => URL.revokeObjectURL(url), 1_000);
+
+  return "saved";
 }
 
 export async function exportCanvas() {
@@ -266,8 +318,11 @@ export async function exportCanvas() {
 
   try {
     const filename = `${PAINT_ACTIONS.exportFilePrefix}-${Date.now()}.png`;
-    await saveExport(await canvasToBlob(canvas), filename);
-    toast.success("Exported!");
+    const outcome = await saveExport(await canvasToBlob(canvas), filename);
+
+    if (outcome === "saved") toast.success("Exported!");
+    if (outcome === "failed")
+      toast.error("Could not save the image. Please update the app and try again.");
   } catch {
     toast.error("Export failed. Please try again.");
   }
