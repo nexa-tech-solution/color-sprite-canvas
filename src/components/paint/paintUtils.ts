@@ -1,6 +1,6 @@
 import { toast } from "sonner";
 import { coloringPageToSrc, type ColoringPage } from "@/lib/coloringPages";
-import { isNativeShell, saveImageNative } from "@/lib/nativeBridge";
+import { isNativeShell, saveImageNative, shellSavesImages } from "@/lib/nativeBridge";
 import { usePaintStore, type CanvasImage } from "@/stores/paintStore";
 import { PAINT_ACTIONS } from "./paintConstants";
 
@@ -132,35 +132,55 @@ function prefersShareSheet() {
 
 type ExportOutcome = "saved" | "cancelled" | "failed";
 
-async function saveExport(blob: Blob, filename: string): Promise<ExportOutcome> {
-  // The shell can always write to the camera roll, and on Android it is the only
-  // route that works at all — so try it before any browser API.
-  if (isNativeShell()) {
-    const outcome = await saveImageNative({ filename, dataUrl: await blobToDataUrl(blob) });
-    if (outcome === "saved") return "saved";
-    if (outcome === "cancelled") return "cancelled";
-    // "unsupported" — an older shell without the SAVE_IMAGE handler. Fall through
-    // to the browser paths, which still work inside WKWebView.
-  }
-
+async function shareFile(blob: Blob, filename: string): Promise<ExportOutcome | null> {
   const file = new File([blob], filename, { type: "image/png" });
 
   // Mobile browsers do not consistently honour an anchor download, especially
   // when it originates in an embedded WebView. Prefer their native share sheet.
   if (
-    prefersShareSheet() &&
-    navigator.share &&
-    (!navigator.canShare || navigator.canShare({ files: [file] }))
+    !prefersShareSheet() ||
+    !navigator.share ||
+    (navigator.canShare && !navigator.canShare({ files: [file] }))
   ) {
-    try {
-      await navigator.share({ files: [file], title: "My coloring" });
-      return "saved";
-    } catch (error) {
-      // A dismissed share sheet is not an export failure. Other errors fall back
-      // to a browser download below.
-      if (error instanceof DOMException && error.name === "AbortError") return "cancelled";
-    }
+    return null;
   }
+
+  try {
+    await navigator.share({ files: [file], title: "My coloring" });
+    return "saved";
+  } catch (error) {
+    // A dismissed share sheet is not an export failure. Anything else (most
+    // often a lapsed user gesture) leaves the caller to try another route.
+    if (error instanceof DOMException && error.name === "AbortError") return "cancelled";
+    return null;
+  }
+}
+
+async function saveViaShell(blob: Blob, filename: string): Promise<ExportOutcome | null> {
+  if (!isNativeShell()) return null;
+
+  const outcome = await saveImageNative({ filename, dataUrl: await blobToDataUrl(blob) });
+  if (outcome === "saved") return "saved";
+  if (outcome === "cancelled") return "cancelled";
+
+  return null; // Shell predates the SAVE_IMAGE handler.
+}
+
+async function saveExport(blob: Blob, filename: string): Promise<ExportOutcome> {
+  // Only jump straight to the shell when it has told us it handles SAVE_IMAGE.
+  // Otherwise the round trip burns the user gesture that WKWebView needs for
+  // navigator.share, which would break iOS on shells that never answer.
+  if (shellSavesImages()) {
+    return (await saveViaShell(blob, filename)) ?? (await shareFile(blob, filename)) ?? "failed";
+  }
+
+  const shared = await shareFile(blob, filename);
+  if (shared) return shared;
+
+  // No share sheet: inside a shell that is the only remaining route (Android
+  // WebView cannot download at all), so it is worth the wait even unannounced.
+  const savedNatively = await saveViaShell(blob, filename);
+  if (savedNatively) return savedNatively;
 
   if (anchorDownloadIsUseless()) return "failed";
 

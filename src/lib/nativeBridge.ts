@@ -16,8 +16,12 @@
  *       webviewRef.current?.injectJavaScript(
  *         `window.__nativeSaveImageResult?.(${JSON.stringify({ requestId, ok, cancelled })}); true;`
  *       );
- *     Answering is required — silence is read as "this shell is too old" after 30s
- *     and the web app falls back to browser APIs (which do nothing on Android).
+ *     Answer `{ requestId, received: true }` first if the save shows UI, so the web
+ *     side stops its "is this shell too old?" timer while the user decides.
+ *
+ * A shell that handles SAVE_IMAGE should also advertise it on load, which lets the
+ * web app skip its browser-first fallbacks:
+ *   window.__nativeCapabilities = { saveImage: true };
  */
 
 export type NativeMediaState = {
@@ -35,9 +39,11 @@ export type NativeCapabilities = {
 export type NativeSaveImageResult = {
   requestId: string;
   /** The image reached the camera roll / share sheet. */
-  ok: boolean;
+  ok?: boolean;
   /** The user backed out of the share sheet or the save dialog — not a failure. */
   cancelled?: boolean;
+  /** Optional early ack: the shell understood the message and is working on it. */
+  received?: boolean;
 };
 
 declare global {
@@ -85,20 +91,37 @@ export function openImagePicker(input: HTMLInputElement | null): void {
 
 export type NativeSaveOutcome = "saved" | "cancelled" | "unsupported";
 
-/** How long to wait for the shell before deciding it does not speak SAVE_IMAGE. */
-const SAVE_IMAGE_TIMEOUT_MS = 30_000;
+/** How long to wait for any sign of life before deciding the shell is too old. */
+const SAVE_IMAGE_TIMEOUT_MS = 8_000;
 
-const pendingSaves = new Map<string, (outcome: NativeSaveOutcome) => void>();
+type PendingSave = {
+  settle: (outcome: NativeSaveOutcome) => void;
+  /** Stop the "too old" timer — the shell answered and may now be showing UI. */
+  keepWaiting: () => void;
+};
+
+const pendingSaves = new Map<string, PendingSave>();
 
 function installSaveImageListener() {
   if (window.__nativeSaveImageResult) return;
 
   window.__nativeSaveImageResult = (result) => {
-    const settle = pendingSaves.get(result?.requestId ?? "");
-    if (!settle) return;
+    const pending = pendingSaves.get(result?.requestId ?? "");
+    if (!pending) return;
+
+    if (result.received && result.ok === undefined && !result.cancelled) {
+      pending.keepWaiting();
+      return;
+    }
+
     pendingSaves.delete(result.requestId);
-    settle(result.ok ? "saved" : result.cancelled ? "cancelled" : "unsupported");
+    pending.settle(result.ok ? "saved" : result.cancelled ? "cancelled" : "unsupported");
   };
+}
+
+/** True only when the shell has announced it handles SAVE_IMAGE. */
+export function shellSavesImages(): boolean {
+  return isNativeShell() && window.__nativeCapabilities?.saveImage === true;
 }
 
 /**
@@ -132,7 +155,7 @@ export function saveImageNative(request: {
 
     const timer = window.setTimeout(() => settle("unsupported"), SAVE_IMAGE_TIMEOUT_MS);
 
-    pendingSaves.set(requestId, settle);
+    pendingSaves.set(requestId, { settle, keepWaiting: () => window.clearTimeout(timer) });
 
     try {
       window.ReactNativeWebView?.postMessage(
