@@ -392,21 +392,21 @@ export function TopBar({
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter className="mt-2 flex-col gap-2 sm:flex-row sm:space-x-0">
-            <AlertDialogCancel className="mt-0 rounded-[14px] border-0 bg-[#f1f4f8] px-4 py-2 text-sm font-semibold text-[#667a9c] shadow-none hover:bg-[#e8edf5] hover:text-[#17243a]">
-              Cancel
-            </AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => void handleShare()}
-              className="rounded-[14px] bg-violet-100 px-4 py-2 text-sm font-semibold text-violet-700 shadow-none hover:bg-violet-200"
-            >
-              Share
-            </AlertDialogAction>
             <AlertDialogAction
               onClick={() => void exportToPhotos()}
               className="rounded-[14px] bg-violet-600 px-4 py-2 text-sm font-semibold text-white shadow-none hover:bg-violet-700"
             >
               Save to Photos
             </AlertDialogAction>
+            <AlertDialogAction
+              onClick={() => void handleShare()}
+              className="rounded-[14px] bg-violet-100 px-4 py-2 text-sm font-semibold text-violet-700 shadow-none hover:bg-violet-200"
+            >
+              Share
+            </AlertDialogAction>
+            <AlertDialogCancel className="mt-0 rounded-[14px] border-0 bg-[#f1f4f8] px-4 py-2 text-sm font-semibold text-[#667a9c] shadow-none hover:bg-[#e8edf5] hover:text-[#17243a]">
+              Cancel
+            </AlertDialogCancel>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
