@@ -248,7 +248,7 @@ export function StickerShelf({
                         </button>
                       )}
                     </div>
-                    <div className="grid grid-cols-4 gap-2 md:grid-cols-5">
+                    <div className="grid grid-cols-5 gap-1.5 md:gap-2">
                       {stickers.map((sticker) => (
                         <button
                           key={sticker.id}
@@ -256,7 +256,7 @@ export function StickerShelf({
                           onClick={() => addSticker(sticker)}
                           title={sticker.name}
                           aria-label={`Add ${sticker.name} sticker`}
-                          className="flex aspect-square cursor-pointer items-center justify-center p-1.5 transition-transform duration-200 hover:-translate-y-0.5 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 active:scale-95 md:p-2"
+                          className="flex aspect-square cursor-pointer items-center justify-center p-2 transition-transform duration-200 hover:-translate-y-0.5 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 active:scale-95 md:p-2"
                         >
                           <img
                             src={stickerToSrc(sticker)}

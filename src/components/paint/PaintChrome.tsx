@@ -220,16 +220,6 @@ export function TopBar({
               >
                 <Undo2 className="size-3.5" />
               </IconBtn>
-              {canShare && (
-                <IconBtn
-                  onClick={handleShare}
-                  disabled={isExporting}
-                  label={isExporting ? "Preparing image" : "Share image"}
-                  className="size-8 rounded-full"
-                >
-                  <Share2 className="size-3.5 text-violet-700" />
-                </IconBtn>
-              )}
               <IconBtn
                 label="Redo"
                 disabled={!canRedo}
@@ -256,6 +246,16 @@ export function TopBar({
               >
                 <Crosshair className={`size-3.5 ${!hasBackgroundImage ? "text-cyan-700" : ""}`} />
               </IconBtn>
+              {canShare && (
+                <IconBtn
+                  onClick={handleShare}
+                  disabled={isExporting}
+                  label={isExporting ? "Preparing image" : "Share image"}
+                  className="size-8 rounded-full"
+                >
+                  <Share2 className="size-3.5 text-violet-700" />
+                </IconBtn>
+              )}
               <IconBtn
                 onClick={handleExport}
                 disabled={isExporting}
