@@ -148,14 +148,39 @@ function closeExportPreview(preview: ExportPreview) {
   if (preview && !preview.closed) preview.close();
 }
 
-function showImageForSaving(blob: Blob, preview: ExportPreview): ExportOutcome {
+function showImageForSaving(blob: Blob, filename: string, preview: ExportPreview): ExportOutcome {
   const url = URL.createObjectURL(blob);
 
-  // This tab was opened directly by the export button, so Safari permits us to
-  // populate it after the async canvas work is done. From there the browser's
-  // native Save Image / Share controls work on both iOS and Android.
+  // This tab was opened directly by the export button, so mobile browsers permit
+  // us to populate it after the async canvas work is done. Android's image
+  // viewer does not reliably expose a save action, so it gets a direct download
+  // link. iOS retains its existing image view for long press / Share.
   if (preview && !preview.closed) {
-    preview.location.replace(url);
+    if (!/Android/i.test(navigator.userAgent)) {
+      preview.location.replace(url);
+    } else {
+      const document = preview.document;
+      document.title = "My coloring";
+      document.body.replaceChildren();
+
+      const container = document.createElement("main");
+      const download = document.createElement("a");
+      const image = document.createElement("img");
+
+      container.style.cssText =
+        "min-height:100vh;box-sizing:border-box;display:grid;place-items:center;gap:16px;padding:24px;background:#fcfcfc;font-family:system-ui,sans-serif;";
+      download.href = url;
+      download.download = filename;
+      download.textContent = "Download image";
+      download.style.cssText =
+        "padding:12px 18px;border-radius:999px;background:#6d28d9;color:#fff;font-weight:700;text-decoration:none;";
+      image.src = url;
+      image.alt = "Your exported coloring";
+      image.style.cssText = "max-width:100%;max-height:calc(100vh - 110px);object-fit:contain;";
+
+      container.append(download, image);
+      document.body.append(container);
+    }
   } else {
     const anchor = document.createElement("a");
     anchor.href = url;
@@ -238,7 +263,7 @@ async function saveExport(
 
   if (anchorDownloadIsUseless()) return "failed";
 
-  if (prefersShareSheet()) return showImageForSaving(blob, preview);
+  if (prefersShareSheet()) return showImageForSaving(blob, filename, preview);
 
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement("a");
