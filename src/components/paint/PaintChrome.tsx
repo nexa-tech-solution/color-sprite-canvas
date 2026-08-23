@@ -11,13 +11,12 @@ import {
   Minus,
   Plus,
   Redo2,
-  Share2,
   Sparkles,
   Trash2,
   Undo2,
 } from "lucide-react";
 import { toast } from "sonner";
-import { openImagePicker, shellSharesImages } from "@/lib/nativeBridge";
+import { openImagePicker, shellSavesImages, shellSharesImages } from "@/lib/nativeBridge";
 import { DEFAULT_PROJECT_NAME } from "@/lib/projects";
 import { usePaintStore, type ToolId } from "@/stores/paintStore";
 import {
@@ -79,7 +78,8 @@ export function TopBar({
   const [importConfirmOpen, setImportConfirmOpen] = useState(false);
   const [pendingImportFile, setPendingImportFile] = useState<File | null>(null);
   const [isExporting, setIsExporting] = useState(false);
-  const canShare = shellSharesImages();
+  const [androidExportChooserOpen, setAndroidExportChooserOpen] = useState(false);
+  const hasAndroidExportChoices = shellSavesImages() && shellSharesImages();
 
   useEffect(() => {
     setDraftName(projectName);
@@ -87,7 +87,7 @@ export function TopBar({
 
   const onImport = () => openImagePicker(fileRef.current);
 
-  const handleExport = async () => {
+  const exportToPhotos = async () => {
     if (isExporting) return;
 
     // Reserve the mobile tab synchronously, before awaiting canvas rendering.
@@ -99,6 +99,14 @@ export function TopBar({
     } finally {
       setIsExporting(false);
     }
+  };
+  const handleExport = () => {
+    if (isExporting) return;
+    if (hasAndroidExportChoices) {
+      setAndroidExportChooserOpen(true);
+      return;
+    }
+    void exportToPhotos();
   };
   const handleShare = async () => {
     if (isExporting) return;
@@ -246,16 +254,6 @@ export function TopBar({
               >
                 <Crosshair className={`size-3.5 ${!hasBackgroundImage ? "text-cyan-700" : ""}`} />
               </IconBtn>
-              {canShare && (
-                <IconBtn
-                  onClick={handleShare}
-                  disabled={isExporting}
-                  label={isExporting ? "Preparing image" : "Share image"}
-                  className="size-8 rounded-full"
-                >
-                  <Share2 className="size-3.5 text-violet-700" />
-                </IconBtn>
-              )}
               <IconBtn
                 onClick={handleExport}
                 disabled={isExporting}
@@ -321,15 +319,6 @@ export function TopBar({
             >
               <BookOpen className="size-4" /> Pages
             </button>
-            {canShare && (
-              <button
-                onClick={handleShare}
-                disabled={isExporting}
-                className="flex items-center gap-2 rounded-full border border-violet-200/70 bg-paint-panel/80 px-4 py-2.5 text-sm font-medium text-violet-700 shadow-soft transition-all hover:bg-violet-100 disabled:cursor-not-allowed disabled:opacity-70"
-              >
-                <Share2 className="size-4" /> Share
-              </button>
-            )}
             <button
               onClick={handleExport}
               disabled={isExporting}
@@ -385,6 +374,38 @@ export function TopBar({
               className="rounded-[14px] bg-cyan-600 px-4 py-2 text-sm font-semibold text-white shadow-none hover:bg-cyan-700"
             >
               Switch
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      <AlertDialog open={androidExportChooserOpen} onOpenChange={setAndroidExportChooserOpen}>
+        <AlertDialogContent className="w-[calc(100%-32px)] max-w-[380px] rounded-[28px] border border-white/90 bg-white/95 p-5 text-[#17243a] shadow-[0_28px_70px_-36px_rgba(23,36,58,0.65)] backdrop-blur-md sm:rounded-[28px]">
+          <AlertDialogHeader className="space-y-3 text-left">
+            <div className="flex size-10 items-center justify-center rounded-[15px] bg-violet-100 text-violet-700">
+              <Download className="size-5" />
+            </div>
+            <AlertDialogTitle className="text-xl font-semibold tracking-normal text-[#17243a]">
+              Export your coloring
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-sm leading-relaxed text-[#697b9a]">
+              Save a copy to Photos or share it with another app.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="mt-2 flex-col gap-2 sm:flex-row sm:space-x-0">
+            <AlertDialogCancel className="mt-0 rounded-[14px] border-0 bg-[#f1f4f8] px-4 py-2 text-sm font-semibold text-[#667a9c] shadow-none hover:bg-[#e8edf5] hover:text-[#17243a]">
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => void handleShare()}
+              className="rounded-[14px] bg-violet-100 px-4 py-2 text-sm font-semibold text-violet-700 shadow-none hover:bg-violet-200"
+            >
+              Share
+            </AlertDialogAction>
+            <AlertDialogAction
+              onClick={() => void exportToPhotos()}
+              className="rounded-[14px] bg-violet-600 px-4 py-2 text-sm font-semibold text-white shadow-none hover:bg-violet-700"
+            >
+              Save to Photos
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
