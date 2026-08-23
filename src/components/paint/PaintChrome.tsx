@@ -11,12 +11,13 @@ import {
   Minus,
   Plus,
   Redo2,
+  Share2,
   Sparkles,
   Trash2,
   Undo2,
 } from "lucide-react";
 import { toast } from "sonner";
-import { openImagePicker } from "@/lib/nativeBridge";
+import { openImagePicker, shellSharesImages } from "@/lib/nativeBridge";
 import { DEFAULT_PROJECT_NAME } from "@/lib/projects";
 import { usePaintStore, type ToolId } from "@/stores/paintStore";
 import {
@@ -78,6 +79,7 @@ export function TopBar({
   const [importConfirmOpen, setImportConfirmOpen] = useState(false);
   const [pendingImportFile, setPendingImportFile] = useState<File | null>(null);
   const [isExporting, setIsExporting] = useState(false);
+  const canShare = shellSharesImages();
 
   useEffect(() => {
     setDraftName(projectName);
@@ -94,6 +96,15 @@ export function TopBar({
     setIsExporting(true);
     try {
       await exportCanvas(preview);
+    } finally {
+      setIsExporting(false);
+    }
+  };
+  const handleShare = async () => {
+    if (isExporting) return;
+    setIsExporting(true);
+    try {
+      await exportCanvas(undefined, "share");
     } finally {
       setIsExporting(false);
     }
@@ -209,6 +220,16 @@ export function TopBar({
               >
                 <Undo2 className="size-3.5" />
               </IconBtn>
+              {canShare && (
+                <IconBtn
+                  onClick={handleShare}
+                  disabled={isExporting}
+                  label={isExporting ? "Preparing image" : "Share image"}
+                  className="size-8 rounded-full"
+                >
+                  <Share2 className="size-3.5 text-violet-700" />
+                </IconBtn>
+              )}
               <IconBtn
                 label="Redo"
                 disabled={!canRedo}
@@ -300,6 +321,15 @@ export function TopBar({
             >
               <BookOpen className="size-4" /> Pages
             </button>
+            {canShare && (
+              <button
+                onClick={handleShare}
+                disabled={isExporting}
+                className="flex items-center gap-2 rounded-full border border-violet-200/70 bg-paint-panel/80 px-4 py-2.5 text-sm font-medium text-violet-700 shadow-soft transition-all hover:bg-violet-100 disabled:cursor-not-allowed disabled:opacity-70"
+              >
+                <Share2 className="size-4" /> Share
+              </button>
+            )}
             <button
               onClick={handleExport}
               disabled={isExporting}

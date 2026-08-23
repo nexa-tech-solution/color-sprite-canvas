@@ -11,7 +11,7 @@
  * Messages the shell must handle in `onMessage`:
  *
  *   { type: "REQUEST_MEDIA_ACCESS" }
- *   { type: "SAVE_IMAGE", requestId, filename, dataUrl }
+ *   { type: "SAVE_IMAGE" | "SHARE_IMAGE", requestId, filename, dataUrl }
  *     Write the PNG data URL to the camera roll (or open a share sheet), then answer:
  *       webviewRef.current?.injectJavaScript(
  *         `window.__nativeSaveImageResult?.(${JSON.stringify({ requestId, ok, cancelled })}); true;`
@@ -34,6 +34,7 @@ export type NativeMediaState = {
 /** What the shell can do for us. Shells older than the save-image bridge send nothing. */
 export type NativeCapabilities = {
   saveImage?: boolean;
+  shareImage?: boolean;
 };
 
 export type NativeSaveImageResult = {
@@ -124,6 +125,11 @@ export function shellSavesImages(): boolean {
   return isNativeShell() && window.__nativeCapabilities?.saveImage === true;
 }
 
+/** True only when the shell can open a native share sheet for an exported image. */
+export function shellSharesImages(): boolean {
+  return isNativeShell() && window.__nativeCapabilities?.shareImage === true;
+}
+
 /**
  * Ask the shell to write a PNG to the device.
  *
@@ -133,12 +139,16 @@ export function shellSavesImages(): boolean {
  * this message, or when it reports a failure — callers then fall back to the
  * browser export path.
  */
-export function saveImageNative(request: {
-  filename: string;
-  dataUrl: string;
-}): Promise<NativeSaveOutcome> {
+function requestNativeImageAction(
+  type: "SAVE_IMAGE" | "SHARE_IMAGE",
+  request: {
+    filename: string;
+    dataUrl: string;
+  },
+  supported: boolean | undefined,
+): Promise<NativeSaveOutcome> {
   if (!isNativeShell()) return Promise.resolve("unsupported");
-  if (window.__nativeCapabilities && !window.__nativeCapabilities.saveImage) {
+  if (window.__nativeCapabilities && !supported) {
     return Promise.resolve("unsupported");
   }
 
@@ -160,7 +170,7 @@ export function saveImageNative(request: {
     try {
       window.ReactNativeWebView?.postMessage(
         JSON.stringify({
-          type: "SAVE_IMAGE",
+          type,
           requestId,
           filename: request.filename,
           dataUrl: request.dataUrl,
@@ -170,6 +180,20 @@ export function saveImageNative(request: {
       settle("unsupported");
     }
   });
+}
+
+export function saveImageNative(request: {
+  filename: string;
+  dataUrl: string;
+}): Promise<NativeSaveOutcome> {
+  return requestNativeImageAction("SAVE_IMAGE", request, window.__nativeCapabilities?.saveImage);
+}
+
+export function shareImageNative(request: {
+  filename: string;
+  dataUrl: string;
+}): Promise<NativeSaveOutcome> {
+  return requestNativeImageAction("SHARE_IMAGE", request, window.__nativeCapabilities?.shareImage);
 }
 
 export function subscribeToNativeMedia(listener: () => void): () => void {

@@ -1,6 +1,12 @@
 import { toast } from "sonner";
 import { coloringPageToSrc, type ColoringPage } from "@/lib/coloringPages";
-import { isNativeShell, saveImageNative, shellSavesImages } from "@/lib/nativeBridge";
+import {
+  isNativeShell,
+  saveImageNative,
+  shareImageNative,
+  shellSavesImages,
+  shellSharesImages,
+} from "@/lib/nativeBridge";
 import { usePaintStore, type CanvasImage } from "@/stores/paintStore";
 import { PAINT_ACTIONS } from "./paintConstants";
 
@@ -223,6 +229,13 @@ async function saveViaShell(blob: Blob, filename: string): Promise<ExportOutcome
   return null; // Shell predates the SAVE_IMAGE handler.
 }
 
+async function shareViaShell(blob: Blob, filename: string): Promise<ExportOutcome | null> {
+  const outcome = await shareImageNative({ filename, dataUrl: await blobToDataUrl(blob) });
+  if (outcome === "saved") return "saved";
+  if (outcome === "cancelled") return "cancelled";
+  return null;
+}
+
 async function saveExport(
   blob: Blob,
   filename: string,
@@ -274,7 +287,12 @@ async function saveExport(
   return "saved";
 }
 
-export async function exportCanvas(preview?: ExportPreview) {
+async function shareExport(blob: Blob, filename: string): Promise<ExportOutcome> {
+  if (!shellSharesImages()) return "failed";
+  return (await shareViaShell(blob, filename)) ?? "failed";
+}
+
+export async function exportCanvas(preview?: ExportPreview, action: "save" | "share" = "save") {
   const state = usePaintStore.getState();
   const { strokes, images } = state;
 
@@ -416,9 +434,14 @@ export async function exportCanvas(preview?: ExportPreview) {
 
   try {
     const filename = `${PAINT_ACTIONS.exportFilePrefix}-${Date.now()}.png`;
-    const outcome = await saveExport(await canvasToBlob(canvas), filename, preview);
+    const blob = await canvasToBlob(canvas);
+    const outcome =
+      action === "share"
+        ? await shareExport(blob, filename)
+        : await saveExport(blob, filename, preview);
 
-    if (outcome === "saved") toast.success("Exported!");
+    if (outcome === "saved")
+      toast.success(action === "share" ? "Share sheet opened!" : "Exported!");
     if (outcome === "ready-to-save")
       toast.message("Your image is ready. Use the browser's Save Image or Share option.");
     if (outcome === "failed")
