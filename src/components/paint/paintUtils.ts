@@ -109,15 +109,6 @@ function blobToDataUrl(blob: Blob): Promise<string> {
 }
 
 /**
- * Android's WebView ignores the `download` attribute and refuses to hand `blob:`
- * URLs to the download manager, so the anchor below silently does nothing there.
- * Only the native shell can save a file on that platform.
- */
-function anchorDownloadIsUseless() {
-  return isNativeShell() && /android/i.test(navigator.userAgent);
-}
-
-/**
  * The share sheet is the right answer on phones and tablets, where a plain
  * download either fails or drops the file somewhere the user cannot find.
  * Desktops have a real download flow, so they should not get a share popup —
@@ -139,7 +130,7 @@ type ExportPreview = Window | null | undefined;
  * meant the previous async fallback could never show the exported image.
  */
 export function prepareMobileExportPreview(): ExportPreview {
-  if (!prefersShareSheet() || isNativeShell()) return null;
+  if (!prefersShareSheet()) return null;
 
   return window.open("", "_blank");
 }
@@ -244,7 +235,14 @@ async function saveExport(
     const outcome =
       (await saveViaShell(blob, filename)) ?? (await shareFile(blob, filename)) ?? "failed";
     if (outcome !== "failed") closeExportPreview(preview);
-    return outcome;
+    if (outcome !== "failed") return outcome;
+
+    // Some Android shells advertise SAVE_IMAGE before their native handler is
+    // ready (or do not have storage access). Do not stop at that failure: the
+    // user can still download from the browser fallback we reserved on tap.
+    if (prefersShareSheet()) return showImageForSaving(blob, filename, preview);
+
+    return "failed";
   }
 
   const shared = await shareFile(blob, filename);
@@ -260,8 +258,6 @@ async function saveExport(
     closeExportPreview(preview);
     return savedNatively;
   }
-
-  if (anchorDownloadIsUseless()) return "failed";
 
   if (prefersShareSheet()) return showImageForSaving(blob, filename, preview);
 
