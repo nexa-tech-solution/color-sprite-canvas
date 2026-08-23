@@ -34,6 +34,7 @@ import {
   buildImportedBackground,
   exportCanvas,
   fileToDataUrl,
+  prepareMobileExportPreview,
   stopControlEvent,
 } from "./paintUtils";
 
@@ -87,9 +88,12 @@ export function TopBar({
   const handleExport = async () => {
     if (isExporting) return;
 
+    // Reserve the mobile tab synchronously, before awaiting canvas rendering.
+    // Safari otherwise blocks the image fallback as an unsolicited popup.
+    const preview = prepareMobileExportPreview();
     setIsExporting(true);
     try {
-      await exportCanvas();
+      await exportCanvas(preview);
     } finally {
       setIsExporting(false);
     }

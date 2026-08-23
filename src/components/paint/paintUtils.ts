@@ -130,7 +130,48 @@ function prefersShareSheet() {
   return /Android|iPhone|iPad|iPod/i.test(ua) || isTouchMac;
 }
 
-type ExportOutcome = "saved" | "cancelled" | "failed";
+type ExportOutcome = "saved" | "ready-to-save" | "cancelled" | "failed";
+type ExportPreview = Window | null | undefined;
+
+/**
+ * Reserve a tab while the Export button's user gesture is still active. iOS
+ * Safari blocks windows opened after the canvas has finished rendering, which
+ * meant the previous async fallback could never show the exported image.
+ */
+export function prepareMobileExportPreview(): ExportPreview {
+  if (!prefersShareSheet() || isNativeShell()) return null;
+
+  return window.open("", "_blank");
+}
+
+function closeExportPreview(preview: ExportPreview) {
+  if (preview && !preview.closed) preview.close();
+}
+
+function showImageForSaving(blob: Blob, preview: ExportPreview): ExportOutcome {
+  const url = URL.createObjectURL(blob);
+
+  // This tab was opened directly by the export button, so Safari permits us to
+  // populate it after the async canvas work is done. From there the browser's
+  // native Save Image / Share controls work on both iOS and Android.
+  if (preview && !preview.closed) {
+    preview.location.replace(url);
+  } else {
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.target = "_blank";
+    anchor.rel = "noopener";
+    anchor.style.display = "none";
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+  }
+
+  // Keep the URL alive while the image is open. Revoking it immediately can
+  // leave a blank page on Mobile Safari.
+  window.setTimeout(() => URL.revokeObjectURL(url), 5 * 60_000);
+  return "ready-to-save";
+}
 
 async function shareFile(blob: Blob, filename: string): Promise<ExportOutcome | null> {
   const file = new File([blob], filename, { type: "image/png" });
@@ -166,23 +207,38 @@ async function saveViaShell(blob: Blob, filename: string): Promise<ExportOutcome
   return null; // Shell predates the SAVE_IMAGE handler.
 }
 
-async function saveExport(blob: Blob, filename: string): Promise<ExportOutcome> {
+async function saveExport(
+  blob: Blob,
+  filename: string,
+  preview: ExportPreview,
+): Promise<ExportOutcome> {
   // Only jump straight to the shell when it has told us it handles SAVE_IMAGE.
   // Otherwise the round trip burns the user gesture that WKWebView needs for
   // navigator.share, which would break iOS on shells that never answer.
   if (shellSavesImages()) {
-    return (await saveViaShell(blob, filename)) ?? (await shareFile(blob, filename)) ?? "failed";
+    const outcome =
+      (await saveViaShell(blob, filename)) ?? (await shareFile(blob, filename)) ?? "failed";
+    if (outcome !== "failed") closeExportPreview(preview);
+    return outcome;
   }
 
   const shared = await shareFile(blob, filename);
-  if (shared) return shared;
+  if (shared) {
+    closeExportPreview(preview);
+    return shared;
+  }
 
   // No share sheet: inside a shell that is the only remaining route (Android
   // WebView cannot download at all), so it is worth the wait even unannounced.
   const savedNatively = await saveViaShell(blob, filename);
-  if (savedNatively) return savedNatively;
+  if (savedNatively) {
+    closeExportPreview(preview);
+    return savedNatively;
+  }
 
   if (anchorDownloadIsUseless()) return "failed";
+
+  if (prefersShareSheet()) return showImageForSaving(blob, preview);
 
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement("a");
@@ -197,11 +253,12 @@ async function saveExport(blob: Blob, filename: string): Promise<ExportOutcome> 
   return "saved";
 }
 
-export async function exportCanvas() {
+export async function exportCanvas(preview?: ExportPreview) {
   const state = usePaintStore.getState();
   const { strokes, images } = state;
 
   if (!strokes.length && !images.length) {
+    closeExportPreview(preview);
     toast.error("Nothing to export yet - draw something first!");
     return;
   }
@@ -338,12 +395,15 @@ export async function exportCanvas() {
 
   try {
     const filename = `${PAINT_ACTIONS.exportFilePrefix}-${Date.now()}.png`;
-    const outcome = await saveExport(await canvasToBlob(canvas), filename);
+    const outcome = await saveExport(await canvasToBlob(canvas), filename, preview);
 
     if (outcome === "saved") toast.success("Exported!");
+    if (outcome === "ready-to-save")
+      toast.message("Your image is ready. Use the browser's Save Image or Share option.");
     if (outcome === "failed")
       toast.error("Could not save the image. Please update the app and try again.");
   } catch {
+    closeExportPreview(preview);
     toast.error("Export failed. Please try again.");
   }
 }
