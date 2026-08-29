@@ -650,11 +650,23 @@ export function CanvasSurface() {
     const nextScale = gesture.startTransform.scale * (distance / gesture.startDistance);
     const scaleFactor = nextScale / gesture.startTransform.scale;
 
-    usePaintStore.getState().setTransform({
+    const state = usePaintStore.getState();
+    state.setTransform({
       scale: nextScale,
       x: midpoint.x - (gesture.startMidpoint.x - gesture.startTransform.x) * scaleFactor,
       y: midpoint.y - (gesture.startMidpoint.y - gesture.startTransform.y) * scaleFactor,
     });
+
+    // Zoom may be constrained at the image edge or maximum scale. Continue
+    // from the resulting transform so the same picture point remains under
+    // the pinch midpoint instead of drifting as the gesture continues.
+    const clampedTransform = usePaintStore.getState().transform;
+    touchGestureRef.current = {
+      ...gesture,
+      startDistance: distance,
+      startMidpoint: midpoint,
+      startTransform: { ...clampedTransform },
+    };
 
     return true;
   }
