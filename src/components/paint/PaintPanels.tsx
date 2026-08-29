@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   ArrowLeft,
@@ -50,18 +50,27 @@ export function StickerShelf({
 }) {
   const addImage = usePaintStore((state) => state.addImage);
   const setTool = usePaintStore((state) => state.setTool);
-  const transform = usePaintStore((state) => state.transform);
   const [query, setQuery] = useState("");
   const [selectedSubject, setSelectedSubject] = useState<StickerSubject | null>(null);
   const [activeSubject, setActiveSubject] = useState<StickerSubject>("Happy");
   const subjectRefs = useRef<Partial<Record<StickerSubject, HTMLElement>>>({});
   const normalizedQuery = query.trim().toLowerCase();
-  const filteredStickers = normalizedQuery
-    ? STICKERS.filter((sticker) =>
-        `${sticker.name} ${sticker.subject}`.toLowerCase().includes(normalizedQuery),
-      )
-    : STICKERS;
+  const filteredStickers = useMemo(
+    () =>
+      normalizedQuery
+        ? STICKERS.filter((sticker) =>
+            `${sticker.name} ${sticker.subject}`.toLowerCase().includes(normalizedQuery),
+          )
+        : STICKERS,
+    [normalizedQuery],
+  );
   const visibleSubjects = selectedSubject ? [selectedSubject] : STICKER_SUBJECTS;
+  const stickersBySubject = useMemo(() => {
+    const groups = new Map<StickerSubject, Sticker[]>();
+    for (const subject of STICKER_SUBJECTS) groups.set(subject, []);
+    for (const sticker of filteredStickers) groups.get(sticker.subject)?.push(sticker);
+    return groups;
+  }, [filteredStickers]);
   const subjectIcons = {
     Happy: Smile,
     Love: Heart,
@@ -84,6 +93,7 @@ export function StickerShelf({
     const scale = Math.min(1, maxStickerSize / Math.max(dimensions.width, dimensions.height));
     const width = Math.round(dimensions.width * scale);
     const height = Math.round(dimensions.height * scale);
+    const { transform } = usePaintStore.getState();
     const centerX = (window.innerWidth / 2 - transform.x) / transform.scale;
     const centerY = (window.innerHeight / 2 - transform.y) / transform.scale;
 
@@ -219,7 +229,7 @@ export function StickerShelf({
 
             <div className="paint-scrollbar min-h-0 flex-1 space-y-2 overflow-y-auto overscroll-contain px-3 py-2 [touch-action:pan-y]">
               {visibleSubjects.map((subject) => {
-                const stickers = filteredStickers.filter((sticker) => sticker.subject === subject);
+                const stickers = stickersBySubject.get(subject) ?? [];
                 if (!stickers.length) return null;
 
                 return (
@@ -229,6 +239,7 @@ export function StickerShelf({
                       subjectRefs.current[subject] = element ?? undefined;
                     }}
                     className="scroll-mt-2 border-b border-slate-100 pb-2 last:border-b-0"
+                    style={{ contentVisibility: "auto", containIntrinsicSize: "auto 18rem" }}
                   >
                     <div
                       className={
@@ -262,6 +273,8 @@ export function StickerShelf({
                             src={stickerToSrc(sticker)}
                             alt=""
                             className="h-auto max-h-full w-auto max-w-full object-contain"
+                            loading="lazy"
+                            decoding="async"
                             draggable={false}
                           />
                         </button>
@@ -307,7 +320,16 @@ export function ColoringPageShelf({
   const activeBackgroundSrc = usePaintStore(
     (state) => state.images.find((image) => image.kind !== "sticker")?.originalSrc ?? null,
   );
-  const categories = Array.from(new Set(COLORING_PAGES.map((page) => page.category)));
+  const pagesByCategory = useMemo(() => {
+    const groups = new Map<ColoringPage["category"], ColoringPage[]>();
+    for (const page of COLORING_PAGES) {
+      const pages = groups.get(page.category) ?? [];
+      pages.push(page);
+      groups.set(page.category, pages);
+    }
+    return groups;
+  }, []);
+  const categories = useMemo(() => Array.from(pagesByCategory.keys()), [pagesByCategory]);
   const [pageConfirmOpen, setPageConfirmOpen] = useState(false);
   const [pendingPage, setPendingPage] = useState<ColoringPage | null>(null);
 
@@ -373,12 +395,15 @@ export function ColoringPageShelf({
 
               <div className="paint-scrollbar min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain px-4 pb-4 [touch-action:pan-y]">
                 {categories.map((category) => (
-                  <section key={category}>
+                  <section
+                    key={category}
+                    style={{ contentVisibility: "auto", containIntrinsicSize: "auto 24rem" }}
+                  >
                     <h3 className="mb-2 text-[11px] font-bold uppercase tracking-[0.16em] text-slate-400">
                       {category}
                     </h3>
                     <div className="grid grid-cols-2 gap-3">
-                      {COLORING_PAGES.filter((page) => page.category === category).map((page) => {
+                      {(pagesByCategory.get(category) ?? []).map((page) => {
                         const pageSrc = coloringPageToSrc(page);
                         const active = activeBackgroundSrc === pageSrc;
 
@@ -400,6 +425,8 @@ export function ColoringPageShelf({
                                 src={pageSrc}
                                 alt=""
                                 className="h-full w-full object-contain opacity-95 transition-transform duration-200 group-hover:scale-[1.03]"
+                                loading="lazy"
+                                decoding="async"
                                 draggable={false}
                               />
                             </span>
