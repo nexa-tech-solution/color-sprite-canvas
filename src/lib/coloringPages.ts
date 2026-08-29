@@ -17,6 +17,15 @@ const importedColoringPageModules = import.meta.glob<string>(
   },
 );
 
+const importedColoringPageSampleModules = import.meta.glob<string>(
+  "../assets/coloring-page-samples/**/*.{png,jpg,jpeg,webp}",
+  {
+    eager: true,
+    import: "default",
+    query: "?url",
+  },
+);
+
 const pageShell =
   'fill="none" stroke="#111827" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"';
 const pageThin =
@@ -123,6 +132,13 @@ const importedColoringPages = Object.entries(importedColoringPageModules).map(
   }),
 );
 
+const coloringPageSamples = new Map(
+  Object.entries(importedColoringPageSampleModules).map(([path, src]) => [
+    path.replace(/^\.\.\/assets\/coloring-page-samples\//, "").replace(/\.[^.]+$/, ""),
+    src,
+  ]),
+);
+
 export const COLORING_PAGES: ColoringPage[] =
   importedColoringPages.length > 0 ? importedColoringPages : FALLBACK_COLORING_PAGES;
 
@@ -131,4 +147,8 @@ export function coloringPageToSrc(page: ColoringPage) {
   if (!page.svg) return "";
 
   return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(page.svg)}`;
+}
+
+export function coloringPageSampleToSrc(page: ColoringPage) {
+  return coloringPageSamples.get(page.id) ?? null;
 }

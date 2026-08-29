@@ -4,6 +4,7 @@ import {
   ArrowLeft,
   BookOpen,
   Drum,
+  Eye,
   Heart,
   IceCreamBowl,
   Leaf,
@@ -17,7 +18,12 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { imageToColoringPage } from "@/lib/coloringPage";
-import { COLORING_PAGES, coloringPageToSrc, type ColoringPage } from "@/lib/coloringPages";
+import {
+  COLORING_PAGES,
+  coloringPageSampleToSrc,
+  coloringPageToSrc,
+  type ColoringPage,
+} from "@/lib/coloringPages";
 import {
   getStickerDimensions,
   STICKERS,
@@ -37,6 +43,14 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { buildColoringBookBackground, stopControlEvent } from "./paintUtils";
 
 const COLORING_PAGE_CATEGORY_ORDER: ColoringPage["category"][] = [
@@ -423,28 +437,32 @@ export function ColoringPageShelf({
                         const active = activeBackgroundSrc === pageSrc;
 
                         return (
-                          <button
+                          <div
                             key={page.id}
-                            type="button"
-                            onClick={() => void addColoringPage(page)}
-                            title={page.name}
-                            aria-label={`Add ${page.name} coloring page`}
-                            className={`group cursor-pointer overflow-hidden rounded-[1.35rem] border bg-white p-2 text-left shadow-none transition-all duration-200 hover:-translate-y-0.5 active:scale-95 ${
+                            className={`overflow-hidden rounded-[1.35rem] border bg-white p-2 text-left shadow-none transition-all duration-200 hover:-translate-y-0.5 ${
                               active
                                 ? "border-cyan-300 ring-2 ring-cyan-200/70"
                                 : "border-cyan-100/80 hover:border-cyan-200 hover:shadow-[0_10px_20px_-18px_rgba(8,145,178,0.28)]"
                             }`}
                           >
-                            <span className="relative flex aspect-[4/5] items-center justify-center overflow-hidden rounded-2xl bg-[linear-gradient(145deg,_#ffffff_0%,_#f8fdff_58%,_#eefcff_100%)] px-3 py-2">
-                              <img
-                                src={pageSrc}
-                                alt=""
-                                className="h-full w-full object-contain opacity-95 transition-transform duration-200 group-hover:scale-[1.03]"
-                                loading="lazy"
-                                decoding="async"
-                                draggable={false}
-                              />
-                            </span>
+                            <button
+                              type="button"
+                              onClick={() => void addColoringPage(page)}
+                              title={`Color ${page.name}`}
+                              aria-label={`Color ${page.name} coloring page`}
+                              className="group block w-full cursor-pointer text-left active:scale-[0.98]"
+                            >
+                              <span className="relative flex aspect-[4/5] items-center justify-center overflow-hidden rounded-2xl bg-[linear-gradient(145deg,_#ffffff_0%,_#f8fdff_58%,_#eefcff_100%)] px-3 py-2">
+                                <img
+                                  src={pageSrc}
+                                  alt=""
+                                  className="h-full w-full object-contain opacity-95 transition-transform duration-200 group-hover:scale-[1.03]"
+                                  loading="lazy"
+                                  decoding="async"
+                                  draggable={false}
+                                />
+                              </span>
+                            </button>
                             <span className="mt-2 block truncate px-1 text-xs font-semibold text-slate-700">
                               {page.name}
                             </span>
@@ -453,7 +471,7 @@ export function ColoringPageShelf({
                                 Current page
                               </span>
                             )}
-                          </button>
+                          </div>
                         );
                       })}
                     </div>
@@ -499,6 +517,78 @@ export function ColoringPageShelf({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+    </>
+  );
+}
+
+export function PageSamplePreview({ isMobile }: { isMobile: boolean }) {
+  const activeBackgroundSrc = usePaintStore(
+    (state) => state.images.find((image) => image.kind !== "sticker")?.originalSrc ?? null,
+  );
+  const tool = usePaintStore((state) => state.tool);
+  const [open, setOpen] = useState(false);
+  const page = activeBackgroundSrc
+    ? (COLORING_PAGES.find((item) => coloringPageToSrc(item) === activeBackgroundSrc) ?? null)
+    : null;
+  const sampleSrc = page ? coloringPageSampleToSrc(page) : null;
+  const mobileBrushDockVisible = isMobile && ["pencil", "brush", "marker", "eraser"].includes(tool);
+
+  if (!page) return null;
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => {
+          if (sampleSrc) {
+            setOpen(true);
+            return;
+          }
+          toast.info("A finished sample has not been added for this page yet.");
+        }}
+        className={`absolute z-40 flex cursor-pointer items-center gap-2 rounded-2xl border border-cyan-100 bg-white/95 px-3 py-2 text-sm font-bold text-cyan-700 shadow-soft backdrop-blur-md transition-all hover:-translate-y-0.5 hover:bg-cyan-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-500 ${
+          isMobile
+            ? mobileBrushDockVisible
+              ? "right-3 top-40"
+              : "bottom-24 right-3"
+            : "bottom-24 right-4"
+        }`}
+        aria-label={`Preview sample for ${page.name}`}
+      >
+        <Eye className="size-4" aria-hidden="true" />
+        <span>Preview sample</span>
+      </button>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent
+          hideClose
+          className="flex max-h-[92dvh] w-[calc(100%-24px)] max-w-[31rem] flex-col overflow-hidden rounded-2xl border border-cyan-100 bg-white/95 p-4 shadow-float backdrop-blur-xl sm:p-5"
+        >
+          <DialogClose
+            className="absolute right-3 top-3 m-0 size-9 rounded-lg border-cyan-100 bg-white/90 p-0 text-slate-500 hover:bg-cyan-50 hover:text-cyan-700 sm:right-4 sm:top-4"
+            aria-label="Close preview"
+          >
+            <X className="mx-auto size-4" aria-hidden="true" />
+          </DialogClose>
+          <DialogHeader className="space-y-1.5 pr-10 text-left">
+            <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-cyan-600">
+              Preview sample
+            </p>
+            <DialogTitle className="text-xl font-semibold text-slate-800">{page.name}</DialogTitle>
+            <DialogDescription className="text-sm leading-relaxed text-slate-500">
+              A finished coloring sample for inspiration.
+            </DialogDescription>
+          </DialogHeader>
+          {sampleSrc && (
+            <div className="mt-3 flex min-h-0 flex-1 items-center justify-center overflow-hidden rounded-xl border border-cyan-100 bg-white">
+              <img
+                src={sampleSrc}
+                alt={`Finished sample for ${page.name}`}
+                className="max-h-[calc(92dvh-15rem)] w-full object-contain"
+              />
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

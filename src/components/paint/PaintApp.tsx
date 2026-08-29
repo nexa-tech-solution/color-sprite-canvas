@@ -4,7 +4,7 @@ import { useIsMobile, useIsTablet } from "@/hooks/use-mobile";
 import { usePaintStore } from "@/stores/paintStore";
 import { CanvasSurface } from "./CanvasSurface";
 import { BrushDock, ToolDock, TopBar, WelcomeCard, ZoomNav } from "./PaintChrome";
-import { ColoringPageShelf, PropertiesPanel, StickerShelf } from "./PaintPanels";
+import { ColoringPageShelf, PageSamplePreview, PropertiesPanel, StickerShelf } from "./PaintPanels";
 import { buildColoringBookBackground } from "./paintUtils";
 
 export function PaintApp() {
@@ -87,6 +87,7 @@ export function PaintApp() {
         onBrushToolSelected={() => setMobileBrushSheetCollapsed(false)}
       />
       <ColoringPageShelf isMobile={isMobile} open={pagesOpen} onClose={() => setPagesOpen(false)} />
+      <PageSamplePreview isMobile={isMobile} />
       <StickerShelf
         isMobile={isMobile}
         open={stickersOpen}
