@@ -340,7 +340,8 @@ export function ColoringPageShelf({
     () =>
       Array.from(pagesByCategory.keys()).sort(
         (first, second) =>
-          COLORING_PAGE_CATEGORY_ORDER.indexOf(first) - COLORING_PAGE_CATEGORY_ORDER.indexOf(second),
+          COLORING_PAGE_CATEGORY_ORDER.indexOf(first) -
+          COLORING_PAGE_CATEGORY_ORDER.indexOf(second),
       ),
     [pagesByCategory],
   );
