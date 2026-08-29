@@ -153,7 +153,7 @@ function clampTransform(transform: Transform, viewport: Viewport, image: CanvasI
   if (!image || viewport.width <= 0 || viewport.height <= 0) return transform;
 
   const frame = getViewportFrame(viewport);
-  const scale = clamp(transform.scale, getMinScale(image, viewport), 8);
+  const scale = Math.max(getMinScale(image, viewport), transform.scale);
   const scaledWidth = image.width * scale;
   const scaledHeight = image.height * scale;
 
@@ -314,7 +314,7 @@ export const usePaintStore = create<PaintState>((set, get) => ({
   zoomAt: (factor, cx, cy) =>
     set((s) => {
       const background = getBackgroundImage(s.images);
-      const nextScale = clamp(s.transform.scale * factor, getMinScale(background, s.viewport), 8);
+      const nextScale = Math.max(getMinScale(background, s.viewport), s.transform.scale * factor);
       const k = nextScale / s.transform.scale;
       return {
         transform: clampTransform(
