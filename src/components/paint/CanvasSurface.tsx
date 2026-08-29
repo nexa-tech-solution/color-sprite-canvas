@@ -650,11 +650,22 @@ export function CanvasSurface() {
     const nextScale = gesture.startTransform.scale * (distance / gesture.startDistance);
     const scaleFactor = nextScale / gesture.startTransform.scale;
 
-    usePaintStore.getState().setTransform({
+    const state = usePaintStore.getState();
+    state.setTransform({
       scale: nextScale,
       x: midpoint.x - (gesture.startMidpoint.x - gesture.startTransform.x) * scaleFactor,
       y: midpoint.y - (gesture.startMidpoint.y - gesture.startTransform.y) * scaleFactor,
     });
+
+    // setTransform keeps the image within the usable canvas frame. Rebase the
+    // gesture on that clamped result so a pinch stays anchored after touching
+    // an image edge instead of jumping back toward the previous position.
+    touchGestureRef.current = {
+      ...gesture,
+      startDistance: distance,
+      startMidpoint: midpoint,
+      startTransform: { ...state.transform },
+    };
 
     return true;
   }
