@@ -39,6 +39,13 @@ import {
 } from "@/components/ui/alert-dialog";
 import { buildColoringBookBackground, stopControlEvent } from "./paintUtils";
 
+const COLORING_PAGE_CATEGORY_ORDER: ColoringPage["category"][] = [
+  "Imported",
+  "Cute",
+  "Fantasy",
+  "Play",
+];
+
 export function StickerShelf({
   isMobile,
   open,
@@ -329,7 +336,14 @@ export function ColoringPageShelf({
     }
     return groups;
   }, []);
-  const categories = useMemo(() => Array.from(pagesByCategory.keys()), [pagesByCategory]);
+  const categories = useMemo(
+    () =>
+      Array.from(pagesByCategory.keys()).sort(
+        (first, second) =>
+          COLORING_PAGE_CATEGORY_ORDER.indexOf(first) - COLORING_PAGE_CATEGORY_ORDER.indexOf(second),
+      ),
+    [pagesByCategory],
+  );
   const [pageConfirmOpen, setPageConfirmOpen] = useState(false);
   const [pendingPage, setPendingPage] = useState<ColoringPage | null>(null);
 

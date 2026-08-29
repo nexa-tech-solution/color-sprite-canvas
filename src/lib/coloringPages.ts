@@ -73,12 +73,29 @@ const FALLBACK_COLORING_PAGES: ColoringPage[] = [
   },
 ];
 
+const coloringPageNames: Record<string, string> = {
+  picture1: "Starry Wand Princess",
+  picture2: "Blossom Sword Princess",
+  picture3: "Little Mermaid",
+  picture4: "Bunny Garden Girl",
+  picture5: "Flower Fairy",
+  picture6: "Unicorn Friend",
+  picture7: "Kitty Gardener",
+  picture8: "Ocean Mermaid",
+  picture9: "Little Hero",
+  picture10: "Castle Knight",
+  picture11: "Soccer Star",
+  picture12: "Dinosaur Explorer",
+};
+
 function titleFromPath(path: string) {
   const filename =
     path
       .split("/")
       .at(-1)
       ?.replace(/\.[^.]+$/, "") ?? "Coloring Page";
+
+  if (coloringPageNames[filename]) return coloringPageNames[filename];
 
   return filename
     .replace(/[-_]+/g, " ")
