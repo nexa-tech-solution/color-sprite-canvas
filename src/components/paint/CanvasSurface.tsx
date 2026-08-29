@@ -10,6 +10,24 @@ import {
 type ResizeHandle = "nw" | "ne" | "sw" | "se";
 type SelectionHandle = ResizeHandle | "rotate";
 type TouchPointList = ArrayLike<{ clientX: number; clientY: number }>;
+type TouchGesture =
+  | {
+      kind: "canvas";
+      startDistance: number;
+      startMidpoint: { x: number; y: number };
+      startTransform: Transform;
+    }
+  | {
+      kind: "sticker";
+      id: string;
+      startDistance: number;
+      startMidpoint: { x: number; y: number };
+      startTransform: Transform;
+      startWidth: number;
+      startHeight: number;
+      startCenter: Point;
+      historyCaptured: boolean;
+    };
 
 // Cache HTMLImageElement instances by src
 const imgCache = new Map<string, HTMLImageElement>();
@@ -220,11 +238,7 @@ function getDrawCursor(tool: ToolId, color: string) {
 export function CanvasSurface() {
   const ref = useRef<HTMLCanvasElement>(null);
   const rafRef = useRef<number | null>(null);
-  const touchGestureRef = useRef<{
-    startDistance: number;
-    startMidpoint: { x: number; y: number };
-    startTransform: Transform;
-  } | null>(null);
+  const touchGestureRef = useRef<TouchGesture | null>(null);
   const drawingRef = useRef<{ id: string } | null>(null);
   const panRef = useRef<{ x: number; y: number } | null>(null);
   const dragImgRef = useRef<{
@@ -542,16 +556,96 @@ export function CanvasSurface() {
     if (distance <= 0) return true;
 
     if (!touchGestureRef.current) {
+      const state = usePaintStore.getState();
+      const selectedImage = state.images.find((image) => image.id === state.selectedImageId);
+      const firstWorldPoint = {
+        x: (firstPoint.x - state.transform.x) / state.transform.scale,
+        y: (firstPoint.y - state.transform.y) / state.transform.scale,
+      };
+      const secondWorldPoint = {
+        x: (secondPoint.x - state.transform.x) / state.transform.scale,
+        y: (secondPoint.y - state.transform.y) / state.transform.scale,
+      };
+
+      // A pinch that starts on a selected sticker manipulates that sticker.
+      // All other pinches retain the canvas zoom behavior.
+      if (
+        selectedImage?.kind === "sticker" &&
+        pointInImage(firstWorldPoint, selectedImage) &&
+        pointInImage(secondWorldPoint, selectedImage)
+      ) {
+        touchGestureRef.current = {
+          kind: "sticker",
+          id: selectedImage.id,
+          startDistance: distance,
+          startMidpoint: midpoint,
+          startTransform: { ...state.transform },
+          startWidth: selectedImage.width,
+          startHeight: selectedImage.height,
+          startCenter: getImageCenter(selectedImage),
+          historyCaptured: false,
+        };
+        return true;
+      }
+
       touchGestureRef.current = {
+        kind: "canvas",
         startDistance: distance,
         startMidpoint: midpoint,
-        startTransform: { ...usePaintStore.getState().transform },
+        startTransform: { ...state.transform },
       };
       return true;
     }
 
     const gesture = touchGestureRef.current;
     if (!gesture) return true;
+
+    if (gesture.kind === "sticker") {
+      const state = usePaintStore.getState();
+      const sticker = state.images.find((image) => image.id === gesture.id);
+      if (!sticker) return true;
+
+      const scale = Math.max(
+        Math.max(0.08, 24 / gesture.startWidth, 24 / gesture.startHeight),
+        distance / gesture.startDistance,
+      );
+      const width = gesture.startWidth * scale;
+      const height = gesture.startHeight * scale;
+      const center = {
+        x:
+          gesture.startCenter.x +
+          (midpoint.x - gesture.startMidpoint.x) / gesture.startTransform.scale,
+        y:
+          gesture.startCenter.y +
+          (midpoint.y - gesture.startMidpoint.y) / gesture.startTransform.scale,
+      };
+      const nextImage = containImageWithinBackground(
+        {
+          ...sticker,
+          x: center.x - width / 2,
+          y: center.y - height / 2,
+          width,
+          height,
+        },
+        getBackgroundImage(state.images),
+      );
+
+      if (
+        !gesture.historyCaptured &&
+        (width !== gesture.startWidth || height !== gesture.startHeight)
+      ) {
+        state.pushHistory();
+        gesture.historyCaptured = true;
+      }
+
+      state.updateImage(gesture.id, {
+        x: nextImage.x,
+        y: nextImage.y,
+        width: nextImage.width,
+        height: nextImage.height,
+      });
+      return true;
+    }
 
     const nextScale = gesture.startTransform.scale * (distance / gesture.startDistance);
     const scaleFactor = nextScale / gesture.startTransform.scale;
