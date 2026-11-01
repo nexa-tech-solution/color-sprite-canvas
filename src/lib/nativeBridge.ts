@@ -19,9 +19,14 @@
  *     Answer `{ requestId, received: true }` first if the save shows UI, so the web
  *     side stops its "is this shell too old?" timer while the user decides.
  *
- * A shell that handles SAVE_IMAGE should also advertise it on load, which lets the
- * web app skip its browser-first fallbacks:
- *   window.__nativeCapabilities = { saveImage: true };
+ *   { type: "OPEN_EMAIL", gmailUrl, mailtoUrl, webUrl }
+ *     Open the Gmail app (`googlegmail://co?...`) with Linking; if it isn't installed
+ *     (Linking.canOpenURL is false — needs "googlegmail" in LSApplicationQueriesSchemes),
+ *     open `webUrl` (Gmail compose) in Safari, or `mailtoUrl` as a last resort.
+ *
+ * A shell that handles SAVE_IMAGE / OPEN_EMAIL should also advertise it on load, which
+ * lets the web app skip its browser-first fallbacks:
+ *   window.__nativeCapabilities = { saveImage: true, openEmail: true };
  */
 
 export type NativeMediaState = {
@@ -35,6 +40,8 @@ export type NativeMediaState = {
 export type NativeCapabilities = {
   saveImage?: boolean;
   shareImage?: boolean;
+  /** Shell handles OPEN_EMAIL (picks Gmail app → Gmail web → Mail natively). */
+  openEmail?: boolean;
 };
 
 export type NativeSaveImageResult = {

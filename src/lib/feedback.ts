@@ -63,10 +63,11 @@ function openInNewTab(url: string) {
 /**
  * Open a pre-filled email to the support inbox. Must be called inside a tap.
  *
- * - Browser: Gmail compose in a new tab; the app tab stays where it is.
- * - iOS app: the WebView would load mail.google.com *inside* the app with no
- *   way back, so hand off to the Gmail app, falling back to the Mail app when
- *   Gmail isn't installed (page still visible = nothing opened).
+ * - Browser (incl. Android): Gmail compose in a new tab; Android hands it to the Gmail app.
+ * - iOS app with a new shell: the shell picks Gmail app → Gmail web in Safari → Mail.
+ * - iOS app with an old shell: try the Gmail app; only fall back to Mail if the app
+ *   clearly never left (no blur / pagehide / hidden). WKWebView doesn't always report
+ *   "hidden" when another app opens, which used to fire the Mail fallback on top of Gmail.
  */
 export function openFeedbackEmail(topic: FeedbackTopic, message: string) {
   if (!isNativeShell()) {
@@ -74,10 +75,34 @@ export function openFeedbackEmail(topic: FeedbackTopic, message: string) {
     return;
   }
 
+  if (window.__nativeCapabilities?.openEmail) {
+    window.ReactNativeWebView?.postMessage(
+      JSON.stringify({
+        type: "OPEN_EMAIL",
+        gmailUrl: gmailAppUrl(topic, message),
+        webUrl: gmailWebUrl(topic, message),
+        mailtoUrl: mailtoUrl(topic, message),
+      }),
+    );
+    return;
+  }
+
+  let left = false;
+  const markLeft = () => {
+    left = true;
+  };
+  const onVisibility = () => document.visibilityState === "hidden" && markLeft();
+  window.addEventListener("blur", markLeft);
+  window.addEventListener("pagehide", markLeft);
+  document.addEventListener("visibilitychange", onVisibility);
+
   window.location.href = gmailAppUrl(topic, message);
   window.setTimeout(() => {
-    if (document.visibilityState === "visible") {
+    window.removeEventListener("blur", markLeft);
+    window.removeEventListener("pagehide", markLeft);
+    document.removeEventListener("visibilitychange", onVisibility);
+    if (!left && document.visibilityState === "visible" && document.hasFocus()) {
       window.location.href = mailtoUrl(topic, message);
     }
-  }, 1200);
+  }, 2000);
 }
