@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useState, type MouseEvent, type ReactNode } from "react";
 import { ArrowLeft, Bug, Lightbulb, Mail, MessageCircle, Palette, X } from "lucide-react";
 import {
   gmailAppUrl,
@@ -7,6 +7,7 @@ import {
   openFeedbackEmail,
   type FeedbackTopic,
 } from "@/lib/feedback";
+import { isNativeShell } from "@/lib/nativeBridge";
 import { GrownUpGate, KID_PRIMARY_BUTTON, KID_SHEET_CLASS } from "@/components/kid/GrownUpGate";
 import {
   Dialog,
@@ -106,7 +107,16 @@ export function FeedbackSheet({
   const back = () =>
     setStep(step === "pick-app" ? "grown-up" : step === "grown-up" ? "message" : "topic");
   // Real links: iOS opens other apps most reliably from a direct tap on an <a>.
-  const closeSoon = () => window.setTimeout(() => onOpenChange(false), 300);
+  // In the iOS app the WebView can't open other apps itself, so ask the shell (OPEN_URL).
+  const openApp = (event: MouseEvent<HTMLAnchorElement>) => {
+    if (isNativeShell()) {
+      event.preventDefault();
+      window.ReactNativeWebView?.postMessage(
+        JSON.stringify({ type: "OPEN_URL", url: event.currentTarget.href }),
+      );
+    }
+    window.setTimeout(() => onOpenChange(false), 300);
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -214,7 +224,7 @@ export function FeedbackSheet({
               </DialogDescription>
               <a
                 href={gmailAppUrl(topic, message)}
-                onClick={closeSoon}
+                onClick={openApp}
                 className={`mt-5 ${KID_PRIMARY_BUTTON}`}
               >
                 <Mail className="size-5" />
@@ -222,7 +232,7 @@ export function FeedbackSheet({
               </a>
               <a
                 href={mailtoUrl(topic, message)}
-                onClick={closeSoon}
+                onClick={openApp}
                 className="mt-3 flex h-12 w-full items-center justify-center rounded-xl font-display text-base font-semibold text-slate-600 ring-1 ring-slate-200 transition-colors hover:bg-slate-50"
               >
                 Other email app

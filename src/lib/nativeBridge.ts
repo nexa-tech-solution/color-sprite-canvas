@@ -19,6 +19,9 @@
  *     Answer `{ requestId, received: true }` first if the save shows UI, so the web
  *     side stops its "is this shell too old?" timer while the user decides.
  *
+ *   { type: "OPEN_URL", url }
+ *     Open another app (googlegmail://…, mailto:…) with Linking.openURL(url).
+ *
  *   { type: "OPEN_EMAIL", gmailUrl, mailtoUrl, webUrl }
  *     Open the Gmail app (`googlegmail://co?...`) with Linking; if it isn't installed
  *     (Linking.canOpenURL is false — needs "googlegmail" in LSApplicationQueriesSchemes),
