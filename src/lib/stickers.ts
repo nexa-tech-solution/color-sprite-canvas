@@ -50,6 +50,12 @@ const stickerNames: Record<string, string> = {
   "soccer-ball": "Soccer Ball",
   "gift-box": "Gift Box",
   kite: "Kite",
+  "puppy-face": "Puppy",
+  "baby-dino": "Dino",
+  "ice-cream": "Ice Cream",
+  watermelon: "Watermelon",
+  crown: "Crown",
+  sunflower: "Sunflower",
 };
 
 const stickerOrder = [
@@ -65,6 +71,8 @@ const stickerOrder = [
   "panda-face",
   "teddy-bear",
   "kitty-face",
+  "puppy-face",
+  "baby-dino",
   "fish",
   "bee",
   "ladybug",
@@ -72,6 +80,8 @@ const stickerOrder = [
   "lollipop",
   "strawberry",
   "cupcake",
+  "ice-cream",
+  "watermelon",
   "mushroom",
   "acorn",
   "crescent-moon",
@@ -79,6 +89,7 @@ const stickerOrder = [
   "happy-star",
   "flower",
   "tulip",
+  "sunflower",
   "leaf",
   "sun",
   "cloud-rain",
@@ -89,6 +100,7 @@ const stickerOrder = [
   "magic-wand",
   "gift-box",
   "diamond",
+  "crown",
   "rocket",
   "toy-train",
 ];
@@ -132,6 +144,12 @@ const stickerSubjects: Record<string, StickerSubject> = {
   diamond: "Things",
   rocket: "Things",
   "toy-train": "Things",
+  "puppy-face": "Animals",
+  "baby-dino": "Animals",
+  "ice-cream": "Food & Drink",
+  watermelon: "Food & Drink",
+  crown: "Things",
+  sunflower: "Nature",
 };
 
 function idFromPath(path: string) {
