@@ -7,6 +7,8 @@ import {
   shellSavesImages,
   shellSharesImages,
 } from "@/lib/nativeBridge";
+import { imageToColoringPage } from "@/lib/coloringPage";
+import { renderStrokeLayer } from "@/lib/strokeRender";
 import { usePaintStore, type CanvasImage } from "@/stores/paintStore";
 import { PAINT_ACTIONS } from "./paintConstants";
 
@@ -21,6 +23,38 @@ export async function fileToDataUrl(file: File): Promise<string> {
     reader.onerror = reject;
     reader.readAsDataURL(file);
   });
+}
+
+/**
+ * Read a picked photo, shrinking it so a 12MP camera shot does not become a
+ * multi-megabyte data URL (slow to decode, and stored with the project).
+ */
+export async function fileToScaledDataUrl(file: File, maxDimension = 1600): Promise<string> {
+  const original = await fileToDataUrl(file);
+
+  try {
+    const image = await loadImg(original);
+    const largest = Math.max(image.naturalWidth, image.naturalHeight);
+    if (!largest || (largest <= maxDimension && file.size < 1_500_000)) return original;
+
+    const scale = Math.min(1, maxDimension / largest);
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.max(1, Math.round(image.naturalWidth * scale));
+    canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return original;
+
+    const keepAlpha = /png|gif|webp/i.test(file.type);
+    if (!keepAlpha) {
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+    }
+    ctx.imageSmoothingQuality = "high";
+    ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+    return canvas.toDataURL(keepAlpha ? "image/png" : "image/jpeg", 0.9);
+  } catch {
+    return original;
+  }
 }
 
 function loadImg(src: string): Promise<HTMLImageElement> {
@@ -67,6 +101,19 @@ export async function buildImportedBackground(src: string) {
     height: size.height,
     opacity: 1,
   };
+}
+
+/**
+ * Photo → printable-style coloring page: shrink the picture, trace its edges
+ * into black outlines on white, and frame it as the page background. The
+ * original photo is kept so the outline strength can be re-tuned later.
+ */
+export async function buildPhotoColoringPage(file: File): Promise<CanvasImage> {
+  const photoSrc = await fileToScaledDataUrl(file, 1400);
+  const outlineSrc = await imageToColoringPage(photoSrc, { lineStrength: 0.75 });
+  const base = await buildImportedBackground(photoSrc);
+
+  return { ...base, src: outlineSrc, originalSrc: photoSrc, isOutline: true };
 }
 
 export async function buildColoringBookBackground(page: ColoringPage) {
@@ -378,37 +425,25 @@ export async function exportCanvas(preview?: ExportPreview, action: "save" | "sh
 
   ctx.globalAlpha = 1;
 
-  for (const stroke of strokes) {
-    ctx.globalAlpha = stroke.opacity;
-    ctx.lineCap = "round";
-    ctx.lineJoin = "round";
-    ctx.lineWidth = stroke.size;
-
-    if (stroke.tool === "eraser") {
-      ctx.globalCompositeOperation = "destination-out";
-      ctx.strokeStyle = "#000";
-    } else {
-      ctx.globalCompositeOperation = stroke.tool === "marker" ? "multiply" : "source-over";
-      ctx.strokeStyle = stroke.color;
-    }
-
-    ctx.beginPath();
-    if (stroke.points.length) {
-      ctx.moveTo(stroke.points[0].x, stroke.points[0].y);
-    }
-    for (let index = 1; index < stroke.points.length - 1; index += 1) {
-      const midX = (stroke.points[index].x + stroke.points[index + 1].x) / 2;
-      const midY = (stroke.points[index].y + stroke.points[index + 1].y) / 2;
-      ctx.quadraticCurveTo(stroke.points[index].x, stroke.points[index].y, midX, midY);
-    }
-    if (stroke.points.length > 1) {
-      const lastPoint = stroke.points.at(-1);
-      if (lastPoint) {
-        ctx.lineTo(lastPoint.x, lastPoint.y);
+  // Strokes go on a separate layer so the eraser cannot punch holes in the page.
+  const strokeLayer = renderStrokeLayer(
+    canvas.width,
+    canvas.height,
+    (layerCtx) => {
+      layerCtx.translate(-minX * scaleFactor, -minY * scaleFactor);
+      layerCtx.scale(scaleFactor, scaleFactor);
+      if (background) {
+        layerCtx.beginPath();
+        layerCtx.rect(background.x, background.y, background.width, background.height);
+        layerCtx.clip();
       }
-    }
-    ctx.stroke();
-  }
+    },
+    strokes,
+  );
+  ctx.save();
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.drawImage(strokeLayer, 0, 0);
+  ctx.restore();
 
   ctx.globalCompositeOperation = "source-over";
   ctx.globalAlpha = 1;
@@ -428,8 +463,17 @@ export async function exportCanvas(preview?: ExportPreview, action: "save" | "sh
 
   for (const image of stickers) {
     const loaded = await waitLoad(image.src);
+    ctx.save();
     ctx.globalAlpha = image.opacity;
-    ctx.drawImage(loaded, image.x, image.y, image.width, image.height);
+    const rotation = image.rotation ?? 0;
+    if (rotation) {
+      ctx.translate(image.x + image.width / 2, image.y + image.height / 2);
+      ctx.rotate(rotation);
+      ctx.drawImage(loaded, -image.width / 2, -image.height / 2, image.width, image.height);
+    } else {
+      ctx.drawImage(loaded, image.x, image.y, image.width, image.height);
+    }
+    ctx.restore();
   }
 
   try {

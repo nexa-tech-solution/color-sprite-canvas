@@ -7,7 +7,7 @@ import { BrushDock, ToolDock, TopBar, WelcomeCard, ZoomNav } from "./PaintChrome
 import { ColoringPageShelf, PageSamplePreview, PropertiesPanel, StickerShelf } from "./PaintPanels";
 import { buildColoringBookBackground } from "./paintUtils";
 
-export function PaintApp() {
+export function PaintApp({ startPageId }: { startPageId?: string } = {}) {
   const isMobile = useIsMobile();
   const isTablet = useIsTablet();
   const [stickersOpen, setStickersOpen] = useState(false);
@@ -43,12 +43,16 @@ export function PaintApp() {
     }
 
     let cancelled = false;
+    // A page picked on the home screen skips the welcome card entirely.
+    const pickedPage = startPageId
+      ? COLORING_PAGES.find((page) => page.id === startPageId)
+      : undefined;
 
-    buildColoringBookBackground(COLORING_PAGES[0])
+    buildColoringBookBackground(pickedPage ?? COLORING_PAGES[0])
       .then((background) => {
         if (cancelled) return;
         usePaintStore.getState().setBackgroundImage(background, {
-          keepWelcome: true,
+          keepWelcome: !pickedPage,
           skipHistory: true,
         });
       })
@@ -59,7 +63,7 @@ export function PaintApp() {
     return () => {
       cancelled = true;
     };
-  }, [hasBackground, isProjectLoaded, preferBlankCanvas, strokesCount]);
+  }, [hasBackground, isProjectLoaded, preferBlankCanvas, startPageId, strokesCount]);
 
   useEffect(() => {
     if (!isMobile || !["pencil", "brush", "marker", "eraser"].includes(tool)) {

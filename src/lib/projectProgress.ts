@@ -1,4 +1,5 @@
-import type { PaintProject, Stroke } from "./projects";
+import type { PaintProject } from "./projects";
+import { drawStroke } from "./strokeRender";
 
 const ANALYSIS_SIZE = 256;
 const DARK_PIXEL_THRESHOLD = 205;
@@ -11,47 +12,6 @@ function loadImage(src: string) {
     image.onerror = () => resolve(null);
     image.src = src;
   });
-}
-
-function drawStroke(context: CanvasRenderingContext2D, stroke: Stroke) {
-  if (stroke.points.length === 0) return;
-
-  context.save();
-  context.globalAlpha = stroke.opacity;
-  context.globalCompositeOperation = stroke.tool === "eraser" ? "destination-out" : "source-over";
-  context.strokeStyle = stroke.color;
-  context.fillStyle = stroke.color;
-  context.lineCap = "round";
-  context.lineJoin = "round";
-  context.lineWidth = stroke.size;
-
-  if (stroke.points.length === 1) {
-    const [point] = stroke.points;
-    context.beginPath();
-    context.arc(point.x, point.y, stroke.size / 2, 0, Math.PI * 2);
-    context.fill();
-    context.restore();
-    return;
-  }
-
-  context.beginPath();
-  context.moveTo(stroke.points[0].x, stroke.points[0].y);
-
-  for (let index = 1; index < stroke.points.length - 1; index += 1) {
-    const point = stroke.points[index];
-    const nextPoint = stroke.points[index + 1];
-    context.quadraticCurveTo(
-      point.x,
-      point.y,
-      (point.x + nextPoint.x) / 2,
-      (point.y + nextPoint.y) / 2,
-    );
-  }
-
-  const lastPoint = stroke.points.at(-1)!;
-  context.lineTo(lastPoint.x, lastPoint.y);
-  context.stroke();
-  context.restore();
 }
 
 function dilateBarrier(barrier: Uint8Array, width: number, height: number) {

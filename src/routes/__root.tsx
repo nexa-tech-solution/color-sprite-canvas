@@ -76,7 +76,16 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
   head: () => ({
     meta: [
       { charSet: "utf-8" },
-      { name: "viewport", content: "width=device-width, initial-scale=1" },
+      {
+        name: "viewport",
+        // App runs inside an iOS WebView: no page zoom (pinch is handled by the
+        // canvas), and extend under the notch so we can pad with safe-area insets.
+        content:
+          "width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover",
+      },
+      { name: "theme-color", content: "#f9fbff" },
+      { name: "format-detection", content: "telephone=no" },
+      { name: "apple-mobile-web-app-capable", content: "yes" },
       { title: "Coloring | A cozy coloring book for kids" },
       {
         name: "description",
@@ -105,7 +114,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
       {
         rel: "stylesheet",
-        href: "https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800;900&display=swap",
+        href: "https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Nunito:wght@400;500;600;700;800;900&display=swap",
       },
     ],
   }),

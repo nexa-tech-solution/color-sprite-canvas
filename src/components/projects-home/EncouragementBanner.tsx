@@ -1,6 +1,6 @@
 import { Sparkles } from "lucide-react";
 import { useEffect, useState } from "react";
-import bearImage from "@/assets/core/bear.png";
+import bearImage from "@/assets/core/bear.webp";
 
 export function EncouragementBanner() {
   const [visible, setVisible] = useState(true);
@@ -42,9 +42,7 @@ export function EncouragementBanner() {
   return (
     <div
       className={`pointer-events-none fixed inset-x-0 bottom-[calc(env(safe-area-inset-bottom)+12px)] z-40 px-3 transition-all duration-400 ease-in-out sm:px-4 lg:px-5 ${
-        visible
-          ? "translate-y-0 opacity-100"
-          : "translate-y-[calc(100%+12px)] opacity-0"
+        visible ? "translate-y-0 opacity-100" : "translate-y-[calc(100%+12px)] opacity-0"
       }`}
     >
       <div className="mx-auto flex max-w-[1560px] justify-center">

@@ -9,6 +9,8 @@ import {
   ImagePlus,
   Loader2,
   Minus,
+  MessageCircleHeart,
+  MoreHorizontal,
   Plus,
   Redo2,
   Sparkles,
@@ -29,11 +31,19 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { FeedbackSheet } from "@/components/feedback/FeedbackSheet";
 import { PAINT_ACTIONS, PALETTE, TOOLS } from "./paintConstants";
 import {
   buildImportedBackground,
   exportCanvas,
-  fileToDataUrl,
+  fileToScaledDataUrl,
   prepareMobileExportPreview,
   stopControlEvent,
 } from "./paintUtils";
@@ -75,6 +85,8 @@ export function TopBar({
   const setBackgroundImage = usePaintStore((state) => state.setBackgroundImage);
   const [draftName, setDraftName] = useState(projectName);
   const [freeCanvasConfirmOpen, setFreeCanvasConfirmOpen] = useState(false);
+  const [clearConfirmOpen, setClearConfirmOpen] = useState(false);
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [importConfirmOpen, setImportConfirmOpen] = useState(false);
   const [pendingImportFile, setPendingImportFile] = useState<File | null>(null);
   const [isExporting, setIsExporting] = useState(false);
@@ -122,7 +134,7 @@ export function TopBar({
   };
 
   const applyImportedBackground = async (file: File) => {
-    const src = await fileToDataUrl(file);
+    const src = await fileToScaledDataUrl(file);
     const background = await buildImportedBackground(src);
     setBackgroundImage(background, { selectImageId: background.id });
     usePaintStore.getState().setTool("select");
@@ -174,7 +186,7 @@ export function TopBar({
       initial={{ y: -30, opacity: 0 }}
       animate={{ y: 0, opacity: 1 }}
       transition={{ type: "spring", stiffness: 220, damping: 24 }}
-      className="pointer-events-none absolute inset-x-0 top-0 z-40 py-3 sm:py-4"
+      className="pointer-events-none absolute inset-x-0 top-0 z-40 pb-3 pt-[calc(env(safe-area-inset-top,0px)+0.75rem)] sm:pb-4 sm:pt-[calc(env(safe-area-inset-top,0px)+1rem)]"
     >
       <div
         className={`flex ${isMobile ? "px-3" : "flex-col gap-2 sm:flex-row sm:items-center sm:justify-between"}`}
@@ -194,7 +206,7 @@ export function TopBar({
             <ChevronLeft className="size-4" />
           </Link>
           {isMobile && (
-            <span className="min-w-0 flex-1 truncate text-sm font-medium text-slate-400">
+            <span className="min-w-0 flex-1 truncate text-sm font-semibold text-slate-600">
               {projectName}
             </span>
           )}
@@ -219,51 +231,81 @@ export function TopBar({
           )}
 
           {isMobile && (
-            <div className="paint-scrollbar ml-1 flex max-w-[48%] shrink-0 items-center overflow-x-auto rounded-full bg-slate-50/70 p-1">
+            <div className="ml-auto flex shrink-0 items-center gap-0.5 rounded-full bg-slate-50/80 p-1">
               <IconBtn
                 label="Undo"
                 disabled={!canUndo}
                 onClick={undo}
-                className="size-8 rounded-full"
+                className="size-9 rounded-full"
               >
-                <Undo2 className="size-3.5" />
+                <Undo2 className="size-4" />
               </IconBtn>
               <IconBtn
                 label="Redo"
                 disabled={!canRedo}
                 onClick={redo}
-                className="size-8 rounded-full"
+                className="size-9 rounded-full"
               >
-                <Redo2 className="size-3.5" />
+                <Redo2 className="size-4" />
               </IconBtn>
-              <IconBtn
-                label="Clear all"
-                disabled={!hasContent}
-                onClick={clearAll}
-                className="size-8 rounded-full"
-              >
-                <Trash2 className="size-3.5 text-rose-500" />
-              </IconBtn>
-              <IconBtn label="Import image" onClick={onImport} className="size-8 rounded-full">
-                <ImagePlus className="size-3.5" />
-              </IconBtn>
-              <IconBtn
-                label={PAINT_ACTIONS.freeCanvasLabel}
-                onClick={activateFreeCanvas}
-                className="size-8 rounded-full"
-              >
-                <Crosshair className={`size-3.5 ${!hasBackgroundImage ? "text-cyan-700" : ""}`} />
-              </IconBtn>
+              <DropdownMenu modal={false}>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    type="button"
+                    aria-label="More actions"
+                    title="More actions"
+                    className="flex size-9 items-center justify-center rounded-full text-slate-500 transition-colors hover:bg-white data-[state=open]:bg-white data-[state=open]:text-slate-700"
+                  >
+                    <MoreHorizontal className="size-5" />
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent
+                  align="end"
+                  sideOffset={10}
+                  className="w-56 rounded-2xl border-slate-100 p-1.5 shadow-[0_20px_40px_-20px_rgba(23,36,58,0.45)]"
+                >
+                  <DropdownMenuItem
+                    onSelect={onImport}
+                    className="gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-slate-700"
+                  >
+                    <ImagePlus className="size-4 text-violet-600" />
+                    Use my photo
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onSelect={activateFreeCanvas}
+                    className="gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-slate-700"
+                  >
+                    <Crosshair className="size-4 text-cyan-600" />
+                    {PAINT_ACTIONS.freeCanvasLabel}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onSelect={() => setFeedbackOpen(true)}
+                    className="gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-slate-700"
+                  >
+                    <MessageCircleHeart className="size-4 text-pink-500" />
+                    Tell us something
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator className="my-1 bg-slate-100" />
+                  <DropdownMenuItem
+                    disabled={!hasContent}
+                    onSelect={() => setClearConfirmOpen(true)}
+                    className="gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-rose-600 focus:text-rose-700"
+                  >
+                    <Trash2 className="size-4" />
+                    Clear all
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
               <IconBtn
                 onClick={handleExport}
                 disabled={isExporting}
                 label={isExporting ? "Exporting canvas" : "Export canvas"}
-                className="size-8 rounded-full"
+                className="size-9 rounded-full !bg-violet-600 !text-white hover:!bg-violet-700"
               >
                 {isExporting ? (
-                  <Loader2 className="size-3.5 animate-spin text-violet-700" />
+                  <Loader2 className="size-4 animate-spin" />
                 ) : (
-                  <Download className="size-3.5 text-violet-700" />
+                  <Download className="size-4" />
                 )}
               </IconBtn>
             </div>
@@ -279,7 +321,11 @@ export function TopBar({
               <IconBtn label="Redo" disabled={!canRedo} onClick={redo}>
                 <Redo2 className="size-4" />
               </IconBtn>
-              <IconBtn label="Clear all" disabled={!hasContent} onClick={clearAll}>
+              <IconBtn
+                label="Clear all"
+                disabled={!hasContent}
+                onClick={() => setClearConfirmOpen(true)}
+              >
                 <Trash2 className="size-4 text-rose-500" />
               </IconBtn>
             </div>
@@ -351,6 +397,37 @@ export function TopBar({
           event.target.value = "";
         }}
       />
+      <FeedbackSheet open={feedbackOpen} onOpenChange={setFeedbackOpen} />
+      <AlertDialog open={clearConfirmOpen} onOpenChange={setClearConfirmOpen}>
+        <AlertDialogContent className="w-[calc(100%-32px)] max-w-[380px] rounded-[28px] border border-white/90 bg-white/95 p-5 text-[#17243a] shadow-[0_28px_70px_-36px_rgba(23,36,58,0.65)] backdrop-blur-md sm:rounded-[28px]">
+          <AlertDialogHeader className="space-y-3 text-left">
+            <div className="flex size-10 items-center justify-center rounded-[15px] bg-rose-50 text-rose-500">
+              <Trash2 className="size-5" />
+            </div>
+            <AlertDialogTitle className="text-xl font-semibold tracking-normal text-[#17243a]">
+              Clear all your coloring?
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-sm leading-relaxed text-[#697b9a]">
+              All colors and stickers on this page will be removed. You can still tap Undo right
+              after if you change your mind.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="mt-2 gap-2 sm:space-x-0">
+            <AlertDialogCancel className="mt-0 rounded-[14px] border-0 bg-[#f1f4f8] px-4 py-2 text-sm font-semibold text-[#667a9c] shadow-none hover:bg-[#e8edf5] hover:text-[#17243a]">
+              Keep it
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                clearAll();
+                setClearConfirmOpen(false);
+              }}
+              className="rounded-[14px] bg-rose-500 px-4 py-2 text-sm font-semibold text-white shadow-none hover:bg-rose-600"
+            >
+              Clear all
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       <AlertDialog open={freeCanvasConfirmOpen} onOpenChange={setFreeCanvasConfirmOpen}>
         <AlertDialogContent className="w-[calc(100%-32px)] max-w-[380px] rounded-[28px] border border-white/90 bg-white/95 p-5 text-[#17243a] shadow-[0_28px_70px_-36px_rgba(23,36,58,0.65)] backdrop-blur-md sm:rounded-[28px]">
           <AlertDialogHeader className="space-y-3 text-left">
@@ -480,7 +557,7 @@ export function ToolDock({
   const [pendingImportFile, setPendingImportFile] = useState<File | null>(null);
 
   const applyImportedBackground = async (file: File) => {
-    const src = await fileToDataUrl(file);
+    const src = await fileToScaledDataUrl(file);
     const background = await buildImportedBackground(src);
     setBackgroundImage(background, { selectImageId: background.id });
     setTool("select");
@@ -508,12 +585,12 @@ export function ToolDock({
 
   if (isMobile) {
     return (
-      <aside className="pointer-events-none absolute inset-x-0 top-[5.5rem] z-40 flex justify-center px-3 md:hidden">
+      <aside className="pointer-events-none absolute inset-x-0 top-[calc(env(safe-area-inset-top,0px)+5.25rem)] z-40 flex justify-center px-3 md:hidden">
         <motion.div
           initial={{ y: -20, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
           transition={{ type: "spring", stiffness: 220, damping: 24, delay: 0.05 }}
-          className="pointer-events-auto grid w-full grid-cols-8 gap-1 rounded-full border border-slate-100 bg-paint-panel/90 px-2 py-2 shadow-soft backdrop-blur-xl"
+          className="pointer-events-auto grid w-full grid-cols-8 gap-0.5 rounded-full border border-slate-100 bg-paint-panel/90 px-1.5 py-1.5 shadow-soft backdrop-blur-xl"
         >
           {TOOLS.map((entry) => {
             const active = tool === entry.id;
@@ -528,13 +605,14 @@ export function ToolDock({
                 }}
                 title={entry.label}
                 aria-label={entry.label}
-                className={`flex size-9 shrink-0 items-center justify-center rounded-full transition-all active:scale-90 ${
+                aria-pressed={active}
+                className={`flex size-10 shrink-0 items-center justify-center justify-self-center rounded-full transition-all active:scale-90 ${
                   active
-                    ? "bg-brand-pink/40 text-pink-600 shadow-inner"
-                    : "text-slate-400 hover:bg-slate-50 hover:text-slate-600"
+                    ? "bg-[linear-gradient(180deg,_#ff7ab8,_#ff58ab)] text-white shadow-[0_10px_18px_-10px_rgba(255,88,171,0.9)]"
+                    : "text-slate-500 hover:bg-slate-50 hover:text-slate-700"
                 }`}
               >
-                <entry.icon className="size-[17px]" />
+                <entry.icon className="size-5" />
               </button>
             );
           })}
@@ -542,25 +620,27 @@ export function ToolDock({
             onClick={onToggleStickers}
             title="Stickers"
             aria-label="Stickers"
-            className={`flex size-9 shrink-0 items-center justify-center rounded-full transition-all active:scale-90 ${
+            aria-pressed={stickersOpen}
+            className={`flex size-10 shrink-0 items-center justify-center justify-self-center rounded-full transition-all active:scale-90 ${
               stickersOpen
                 ? "bg-brand-lemon text-amber-600 shadow-inner"
-                : "text-slate-400 hover:bg-slate-50 hover:text-slate-600"
+                : "text-amber-500 hover:bg-slate-50"
             }`}
           >
-            <Sparkles className="size-[17px]" />
+            <Sparkles className="size-5" />
           </button>
           <button
             onClick={onTogglePages}
             title="Coloring pages"
             aria-label="Coloring pages"
-            className={`flex size-9 shrink-0 items-center justify-center rounded-full transition-all active:scale-90 ${
+            aria-pressed={pagesOpen}
+            className={`flex size-10 shrink-0 items-center justify-center justify-self-center rounded-full transition-all active:scale-90 ${
               pagesOpen
                 ? "bg-brand-mint text-cyan-700 shadow-inner"
-                : "text-slate-400 hover:bg-slate-50 hover:text-slate-600"
+                : "text-cyan-600 hover:bg-slate-50"
             }`}
           >
-            <BookOpen className="size-[17px]" />
+            <BookOpen className="size-5" />
           </button>
         </motion.div>
       </aside>
@@ -829,9 +909,9 @@ export function ZoomNav({
       transition={{ type: "spring", stiffness: 220, damping: 24, delay: 0.1 }}
       className={`absolute z-40 flex items-center border border-slate-100 bg-paint-panel/90 shadow-soft backdrop-blur-md ${
         mobileSheetVisible
-          ? `${mobileSheetCollapsed ? "bottom-[2.85rem]" : "bottom-[13.7rem]"} left-1/2 -translate-x-1/2 gap-1 rounded-[1.7rem] p-1.5`
+          ? `${mobileSheetCollapsed ? "bottom-[calc(env(safe-area-inset-bottom,0px)+2.85rem)]" : "bottom-[calc(env(safe-area-inset-bottom,0px)+13.7rem)]"} left-1/2 -translate-x-1/2 gap-1 rounded-[1.7rem] p-1.5`
           : isMobile
-            ? "bottom-5 left-1/2 -translate-x-1/2 gap-1 rounded-2xl p-1.5"
+            ? "bottom-[calc(env(safe-area-inset-bottom,0px)+1.25rem)] left-1/2 -translate-x-1/2 gap-1 rounded-2xl p-1.5"
             : isTablet
               ? `${brushDockVisible ? "bottom-[5.7rem]" : "bottom-5"} left-1/2 -translate-x-1/2 gap-1 rounded-2xl p-1.5`
               : "bottom-6 right-4 gap-1 rounded-2xl p-1.5"

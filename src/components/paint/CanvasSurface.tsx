@@ -1,11 +1,17 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { drawStroke } from "@/lib/strokeRender";
 import {
   usePaintStore,
   type Point,
   type CanvasImage,
+  type Stroke,
   type ToolId,
   type Transform,
 } from "@/stores/paintStore";
+
+/** A stroke this young when a second finger lands was really the start of a pinch. */
+const PINCH_GRACE_MS = 260;
+const PINCH_GRACE_POINTS = 10;
 
 type ResizeHandle = "nw" | "ne" | "sw" | "se";
 type SelectionHandle = ResizeHandle | "rotate";
@@ -267,10 +273,22 @@ export function CanvasSurface() {
     historyCaptured: boolean;
   } | null>(null);
   const spaceRef = useRef(false);
+  const activePointersRef = useRef(new Set<number>());
+  const strokeStartRef = useRef(0);
+  // Offscreen layer holding every finished stroke for the current view, so a
+  // frame while drawing only paints the in-progress stroke instead of
+  // replaying the whole drawing.
+  const layerRef = useRef<{
+    canvas: HTMLCanvasElement;
+    working: HTMLCanvasElement;
+    key: string;
+    strokes: Stroke[];
+  } | null>(null);
   const [hoveredHandle, setHoveredHandle] = useState<SelectionHandle | null>(null);
   const [size, setSize] = useState(getViewportSize);
 
-  const s = usePaintStore();
+  const currentTool = usePaintStore((state) => state.tool);
+  const currentColor = usePaintStore((state) => state.color);
 
   // resize
   useLayoutEffect(() => {
@@ -323,6 +341,108 @@ export function CanvasSurface() {
       window.removeEventListener("keyup", up);
     };
   }, []);
+
+  function getStrokeLayer(
+    w: number,
+    h: number,
+    dpr: number,
+    transform: Transform,
+    strokes: Stroke[],
+    background: CanvasImage | null,
+  ) {
+    const pixelW = Math.max(1, Math.round(w * dpr));
+    const pixelH = Math.max(1, Math.round(h * dpr));
+    const key = [
+      pixelW,
+      pixelH,
+      transform.x,
+      transform.y,
+      transform.scale,
+      background ? `${background.x},${background.y},${background.width},${background.height}` : "-",
+    ].join("|");
+
+    let layer = layerRef.current;
+    if (!layer) {
+      layer = {
+        canvas: document.createElement("canvas"),
+        working: document.createElement("canvas"),
+        key: "",
+        strokes: [],
+      };
+      layerRef.current = layer;
+    }
+
+    const prepare = (target: HTMLCanvasElement) => {
+      if (target.width !== pixelW || target.height !== pixelH) {
+        target.width = pixelW;
+        target.height = pixelH;
+      }
+      const context = target.getContext("2d");
+      if (!context) return null;
+      context.setTransform(1, 0, 0, 1, 0, 0);
+      return context;
+    };
+
+    const applyWorld = (context: CanvasRenderingContext2D) => {
+      context.setTransform(
+        dpr * transform.scale,
+        0,
+        0,
+        dpr * transform.scale,
+        dpr * transform.x,
+        dpr * transform.y,
+      );
+      if (background) {
+        context.beginPath();
+        context.rect(background.x, background.y, background.width, background.height);
+        context.clip();
+      }
+    };
+
+    const activeId = drawingRef.current?.id;
+    const hasActive = Boolean(activeId) && strokes[strokes.length - 1]?.id === activeId;
+    const committedCount = hasActive ? strokes.length - 1 : strokes.length;
+
+    // Is the cached layer still a valid prefix of the finished strokes?
+    let reusable = layer.key === key && layer.strokes.length <= committedCount;
+    if (reusable) {
+      for (let i = 0; i < layer.strokes.length; i += 1) {
+        if (layer.strokes[i] !== strokes[i]) {
+          reusable = false;
+          break;
+        }
+      }
+    }
+
+    const base = prepare(layer.canvas);
+    if (!base) return null;
+
+    if (!reusable) {
+      base.clearRect(0, 0, pixelW, pixelH);
+      layer.strokes = [];
+    }
+
+    if (layer.strokes.length < committedCount) {
+      base.save();
+      applyWorld(base);
+      for (let i = layer.strokes.length; i < committedCount; i += 1) drawStroke(base, strokes[i]);
+      base.restore();
+      layer.strokes = strokes.slice(0, committedCount);
+    }
+    layer.key = key;
+
+    if (!hasActive) return layer.canvas;
+
+    const working = prepare(layer.working);
+    if (!working) return layer.canvas;
+    working.clearRect(0, 0, pixelW, pixelH);
+    working.drawImage(layer.canvas, 0, 0);
+    working.save();
+    applyWorld(working);
+    drawStroke(working, strokes[strokes.length - 1]);
+    working.restore();
+    return layer.working;
+  }
 
   const redraw = useCallback(() => {
     const canvas = ref.current;
@@ -395,39 +515,17 @@ export function CanvasSurface() {
 
     for (const im of bgImages) drawImage(im);
 
-    // strokes between bg images and outline images so painting under outline works
-    for (const stroke of strokes) {
-      ctx.globalAlpha = stroke.opacity;
-      ctx.lineCap = "round";
-      ctx.lineJoin = "round";
-      ctx.lineWidth = stroke.size;
-      if (stroke.tool === "eraser") {
-        ctx.globalCompositeOperation = "destination-out";
-        ctx.strokeStyle = "rgba(0,0,0,1)";
-      } else {
-        ctx.globalCompositeOperation = stroke.tool === "marker" ? "multiply" : "source-over";
-        ctx.strokeStyle = stroke.color;
-      }
-      const p = stroke.points;
-      if (p.length < 2) {
-        ctx.beginPath();
-        ctx.arc(p[0].x, p[0].y, stroke.size / 2, 0, Math.PI * 2);
-        ctx.fillStyle = stroke.color;
-        ctx.fill();
-      } else {
-        ctx.beginPath();
-        ctx.moveTo(p[0].x, p[0].y);
-        for (let i = 1; i < p.length - 1; i++) {
-          const mx = (p[i].x + p[i + 1].x) / 2;
-          const my = (p[i].y + p[i + 1].y) / 2;
-          ctx.quadraticCurveTo(p[i].x, p[i].y, mx, my);
-        }
-        ctx.lineTo(p[p.length - 1].x, p[p.length - 1].y);
-        ctx.stroke();
+    // Strokes live on their own layer so the eraser only removes paint, never
+    // the page, a photo background or the outline.
+    if (strokes.length) {
+      const layer = getStrokeLayer(w, h, dpr, transform, strokes, background);
+      if (layer) {
+        ctx.save();
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.drawImage(layer, 0, 0);
+        ctx.restore();
       }
     }
-    ctx.globalAlpha = 1;
-    ctx.globalCompositeOperation = "source-over";
 
     // outline layer with multiply so strokes below stay visible
     for (const im of outlineImages) {
@@ -707,12 +805,36 @@ export function CanvasSurface() {
   }
 
   // pointer handlers
+  const cancelYoungStroke = () => {
+    const drawing = drawingRef.current;
+    if (!drawing) return;
+    const stroke = usePaintStore.getState().strokes.at(-1);
+    const young =
+      performance.now() - strokeStartRef.current < PINCH_GRACE_MS ||
+      (stroke?.id === drawing.id && stroke.points.length <= PINCH_GRACE_POINTS);
+    if (young) usePaintStore.getState().cancelStroke(drawing.id);
+    drawingRef.current = null;
+  };
+
   const onPointerDown = (e: React.PointerEvent) => {
-    if (e.pointerType === "touch" && touchGestureRef.current) {
-      return;
+    if (e.pointerType === "touch") {
+      // The primary pointer is the first finger of a fresh touch sequence; reset
+      // so a pointerup iOS never delivered cannot block drawing forever.
+      if (e.isPrimary) activePointersRef.current.clear();
+      activePointersRef.current.add(e.pointerId);
+      // A second finger means pinch/pan — undo the accidental mark from the first.
+      if (activePointersRef.current.size > 1 || touchGestureRef.current) {
+        cancelYoungStroke();
+        clearInteractionState();
+        return;
+      }
     }
 
-    (e.target as Element).setPointerCapture(e.pointerId);
+    try {
+      (e.target as Element).setPointerCapture(e.pointerId);
+    } catch {
+      // Pointer already gone (e.g. lifted mid-frame) — nothing to capture.
+    }
 
     const st = usePaintStore.getState();
     const isPan = st.tool === "pan" || spaceRef.current || e.button === 1;
@@ -799,6 +921,7 @@ export function CanvasSurface() {
         points: [wp],
       });
       drawingRef.current = { id };
+      strokeStartRef.current = performance.now();
     }
   };
 
@@ -917,6 +1040,7 @@ export function CanvasSurface() {
   };
 
   const onPointerUp = (e: React.PointerEvent) => {
+    activePointersRef.current.delete(e.pointerId);
     if ((e.target as Element).hasPointerCapture(e.pointerId)) {
       (e.target as Element).releasePointerCapture(e.pointerId);
     }
@@ -926,7 +1050,16 @@ export function CanvasSurface() {
     }
   };
 
-  const onTouchStart = (e: React.TouchEvent) => {
+  const onTouchStart = (e: TouchEvent) => {
+    if (e.touches.length < 2) return;
+
+    e.preventDefault();
+    cancelYoungStroke();
+    clearInteractionState();
+    syncTouchGesture(e.touches);
+  };
+
+  const onTouchMove = (e: TouchEvent) => {
     if (e.touches.length < 2) return;
 
     e.preventDefault();
@@ -934,15 +1067,7 @@ export function CanvasSurface() {
     syncTouchGesture(e.touches);
   };
 
-  const onTouchMove = (e: React.TouchEvent) => {
-    if (e.touches.length < 2) return;
-
-    e.preventDefault();
-    clearInteractionState();
-    syncTouchGesture(e.touches);
-  };
-
-  const onTouchEnd = (e: React.TouchEvent) => {
+  const onTouchEnd = (e: TouchEvent) => {
     if (e.touches.length >= 2) {
       e.preventDefault();
       syncTouchGesture(e.touches);
@@ -950,9 +1075,10 @@ export function CanvasSurface() {
     }
 
     touchGestureRef.current = null;
+    if (e.touches.length === 0) activePointersRef.current.clear();
   };
 
-  const onWheel = (e: React.WheelEvent) => {
+  const onWheel = (e: WheelEvent) => {
     e.preventDefault();
     const st = usePaintStore.getState();
     if (e.ctrlKey || e.metaKey || Math.abs(e.deltaY) > 20) {
@@ -964,10 +1090,37 @@ export function CanvasSurface() {
     }
   };
 
+  // React registers touch/wheel listeners as passive, so preventDefault() is
+  // ignored and iOS can still scroll/zoom the WebView mid-pinch. Bind natively.
+  const nativeHandlersRef = useRef({ onTouchStart, onTouchMove, onTouchEnd, onWheel });
+  nativeHandlersRef.current = { onTouchStart, onTouchMove, onTouchEnd, onWheel };
+
+  useEffect(() => {
+    const canvas = ref.current;
+    if (!canvas) return;
+    const options: AddEventListenerOptions = { passive: false };
+    const start = (e: TouchEvent) => nativeHandlersRef.current.onTouchStart(e);
+    const move = (e: TouchEvent) => nativeHandlersRef.current.onTouchMove(e);
+    const end = (e: TouchEvent) => nativeHandlersRef.current.onTouchEnd(e);
+    const wheel = (e: WheelEvent) => nativeHandlersRef.current.onWheel(e);
+    canvas.addEventListener("touchstart", start, options);
+    canvas.addEventListener("touchmove", move, options);
+    canvas.addEventListener("touchend", end, options);
+    canvas.addEventListener("touchcancel", end, options);
+    canvas.addEventListener("wheel", wheel, options);
+    return () => {
+      canvas.removeEventListener("touchstart", start);
+      canvas.removeEventListener("touchmove", move);
+      canvas.removeEventListener("touchend", end);
+      canvas.removeEventListener("touchcancel", end);
+      canvas.removeEventListener("wheel", wheel);
+    };
+  }, []);
+
   const cursor =
-    s.tool === "pan" || spaceRef.current
+    currentTool === "pan" || spaceRef.current
       ? "grab"
-      : s.tool === "select"
+      : currentTool === "select"
         ? hoveredHandle === "nw" || hoveredHandle === "se"
           ? "nwse-resize"
           : hoveredHandle === "ne" || hoveredHandle === "sw"
@@ -975,7 +1128,7 @@ export function CanvasSurface() {
             : hoveredHandle === "rotate"
               ? "grab"
               : "default"
-        : getDrawCursor(s.tool, s.color);
+        : getDrawCursor(currentTool, currentColor);
 
   return (
     <canvas
@@ -986,11 +1139,6 @@ export function CanvasSurface() {
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
       onPointerCancel={onPointerUp}
-      onWheel={onWheel}
-      onTouchStart={onTouchStart}
-      onTouchMove={onTouchMove}
-      onTouchEnd={onTouchEnd}
-      onTouchCancel={onTouchEnd}
     />
   );
 }

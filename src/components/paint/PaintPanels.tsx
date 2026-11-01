@@ -21,6 +21,7 @@ import { imageToColoringPage } from "@/lib/coloringPage";
 import {
   COLORING_PAGES,
   coloringPageSampleToSrc,
+  coloringPageThumbToSrc,
   coloringPageToSrc,
   type ColoringPage,
 } from "@/lib/coloringPages";
@@ -150,7 +151,7 @@ export function StickerShelf({
           onTouchMove={stopControlEvent}
           className={`pointer-events-auto absolute z-50 ${
             isMobile
-              ? "inset-x-3 bottom-20 h-[48dvh]"
+              ? "inset-x-3 bottom-[calc(env(safe-area-inset-bottom,0px)+5rem)] h-[48dvh]"
               : "bottom-6 left-[4.75rem] top-24 hidden w-[19rem] md:block"
           }`}
         >
@@ -401,7 +402,7 @@ export function ColoringPageShelf({
             onTouchMove={stopControlEvent}
             className={`pointer-events-auto absolute z-50 ${
               isMobile
-                ? "inset-x-3 bottom-20 h-[58dvh]"
+                ? "inset-x-3 bottom-[calc(env(safe-area-inset-bottom,0px)+5rem)] h-[58dvh]"
                 : "bottom-6 left-[4.75rem] top-24 hidden w-[22rem] md:block"
             }`}
           >
@@ -454,7 +455,7 @@ export function ColoringPageShelf({
                             >
                               <span className="relative flex aspect-[4/5] items-center justify-center overflow-hidden rounded-2xl bg-[linear-gradient(145deg,_#ffffff_0%,_#f8fdff_58%,_#eefcff_100%)] px-3 py-2">
                                 <img
-                                  src={pageSrc}
+                                  src={coloringPageThumbToSrc(page)}
                                   alt=""
                                   className="h-full w-full object-contain opacity-95 transition-transform duration-200 group-hover:scale-[1.03]"
                                   loading="lazy"

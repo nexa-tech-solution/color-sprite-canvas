@@ -26,6 +26,16 @@ const importedColoringPageSampleModules = import.meta.glob<string>(
   },
 );
 
+// Small previews for the page picker; full-size art is only loaded once chosen.
+const coloringPageThumbModules = import.meta.glob<string>(
+  "../assets/coloring-page-thumbs/**/*.webp",
+  {
+    eager: true,
+    import: "default",
+    query: "?url",
+  },
+);
+
 const pageShell =
   'fill="none" stroke="#111827" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"';
 const pageThin =
@@ -147,6 +157,18 @@ export function coloringPageToSrc(page: ColoringPage) {
   if (!page.svg) return "";
 
   return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(page.svg)}`;
+}
+
+const coloringPageThumbs = new Map(
+  Object.entries(coloringPageThumbModules).map(([path, src]) => [
+    path.replace(/^\.\.\/assets\/coloring-page-thumbs\//, "").replace(/\.[^.]+$/, ""),
+    src,
+  ]),
+);
+
+/** Lightweight preview for grids; falls back to the full page. */
+export function coloringPageThumbToSrc(page: ColoringPage) {
+  return coloringPageThumbs.get(page.id) ?? coloringPageToSrc(page);
 }
 
 export function coloringPageSampleToSrc(page: ColoringPage) {

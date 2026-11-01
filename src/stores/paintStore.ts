@@ -52,6 +52,8 @@ interface PaintState {
   preferBlankCanvas: boolean;
 
   showWelcome: boolean;
+  /** Fit the page to the screen as soon as the viewport is known. */
+  pendingFit: boolean;
 
   history: Snapshot[];
   future: Snapshot[];
@@ -76,6 +78,8 @@ interface PaintState {
   beginStroke: (s: Stroke) => void;
   extendStroke: (id: string, p: Point) => void;
   endStroke: () => void;
+  /** Drop a stroke that turned out to be the first finger of a pinch. */
+  cancelStroke: (id: string) => void;
 
   addImage: (img: CanvasImage) => void;
   updateImage: (id: string, patch: Partial<CanvasImage>) => void;
@@ -97,24 +101,55 @@ function isRestorableTool(tool: string): tool is Exclude<ToolId, "image"> {
   return ["select", "pan", "pencil", "brush", "marker", "eraser"].includes(tool);
 }
 
-function getInitialTool(): Exclude<ToolId, "image"> {
-  if (typeof window === "undefined") return "pan";
+// Kids expect a finger to paint straight away; two fingers already pan/zoom.
+const DEFAULT_TOOL: Exclude<ToolId, "image"> = "brush";
 
-  const storedTool = window.localStorage.getItem(TOOL_STORAGE_KEY);
-  return storedTool && isRestorableTool(storedTool) ? storedTool : "pan";
+function getInitialTool(): Exclude<ToolId, "image"> {
+  if (typeof window === "undefined") return DEFAULT_TOOL;
+
+  try {
+    const storedTool = window.localStorage.getItem(TOOL_STORAGE_KEY);
+    return storedTool && isRestorableTool(storedTool) ? storedTool : DEFAULT_TOOL;
+  } catch {
+    return DEFAULT_TOOL;
+  }
 }
 
 function persistTool(tool: ToolId) {
   if (typeof window === "undefined" || tool === "image") return;
-  window.localStorage.setItem(TOOL_STORAGE_KEY, tool);
+  try {
+    window.localStorage.setItem(TOOL_STORAGE_KEY, tool);
+  } catch {
+    // Storage full or blocked — the tool choice is a convenience only.
+  }
+}
+
+/** Device safe-area insets (notch / home indicator), read once from CSS env(). */
+let safeAreaCache: { top: number; bottom: number } | null = null;
+function getSafeAreaInsets() {
+  if (safeAreaCache) return safeAreaCache;
+  if (typeof document === "undefined" || !document.body) return { top: 0, bottom: 0 };
+
+  const probe = document.createElement("div");
+  probe.style.cssText =
+    "position:fixed;visibility:hidden;pointer-events:none;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);";
+  document.body.appendChild(probe);
+  const style = getComputedStyle(probe);
+  safeAreaCache = {
+    top: parseFloat(style.paddingTop) || 0,
+    bottom: parseFloat(style.paddingBottom) || 0,
+  };
+  probe.remove();
+  return safeAreaCache;
 }
 
 function getViewportFrame(viewport: Viewport): ViewportFrame {
   const isMobile = viewport.width < 768;
+  const safeArea = getSafeAreaInsets();
   const leftInset = isMobile ? 16 : 32;
   const rightInset = isMobile ? 16 : 32;
-  const topInset = isMobile ? 196 : 118;
-  const bottomInset = isMobile ? 170 : 132;
+  const topInset = (isMobile ? 196 : 118) + safeArea.top;
+  const bottomInset = (isMobile ? 170 : 132) + safeArea.bottom;
 
   return {
     left: leftInset,
@@ -201,11 +236,11 @@ function getFocusedTransform(image: CanvasImage, viewport: Viewport) {
   );
 }
 
+// Strokes and images are replaced immutably (only the in-progress stroke's
+// points grow in place, and it is never part of an earlier snapshot), so
+// history can share references instead of deep-copying every point 80 times.
 function snap(state: PaintState): Snapshot {
-  return {
-    strokes: state.strokes.map((s) => ({ ...s, points: [...s.points] })),
-    images: state.images.map((i) => ({ ...i, rotation: i.rotation ?? 0 })),
-  };
+  return { strokes: state.strokes, images: state.images };
 }
 
 export function projectFromState(state: PaintState): PaintProject | null {
@@ -218,10 +253,7 @@ export function projectFromState(state: PaintState): PaintProject | null {
     createdAt: state.currentProjectCreatedAt,
     updatedAt: new Date().toISOString(),
     transform: { ...state.transform },
-    strokes: state.strokes.map((stroke) => ({
-      ...stroke,
-      points: stroke.points.map((point) => ({ ...point })),
-    })),
+    strokes: state.strokes.map((stroke) => ({ ...stroke, points: stroke.points.slice() })),
     images: state.images.map((image) => ({ ...image, rotation: image.rotation ?? 0 })),
   };
 }
@@ -248,6 +280,7 @@ export const usePaintStore = create<PaintState>((set, get) => ({
   preferBlankCanvas: false,
 
   showWelcome: true,
+  pendingFit: false,
 
   history: [],
   future: [],
@@ -257,6 +290,14 @@ export const usePaintStore = create<PaintState>((set, get) => ({
       const hasBackgroundImage = project.images.some((image) => image.kind !== "sticker");
       const resolvedPreferBlankCanvas = project.preferBlankCanvas ?? !hasBackgroundImage;
       const isEmptyProject = project.strokes.length === 0 && project.images.length === 0;
+      const background = getBackgroundImage(project.images);
+      const viewport = get().viewport;
+      // A project created with its page already attached (e.g. photo → coloring
+      // page) has never been framed; fit it instead of showing it at 100%.
+      const untouched =
+        project.transform.x === 0 && project.transform.y === 0 && project.transform.scale === 1;
+      const needsFit = Boolean(background) && untouched;
+      const hasViewport = viewport.width > 0 && viewport.height > 0;
 
       return {
         currentProjectId: project.id,
@@ -264,11 +305,11 @@ export const usePaintStore = create<PaintState>((set, get) => ({
         currentProjectCreatedAt: project.createdAt,
         currentProjectUpdatedAt: project.updatedAt,
         isProjectLoaded: true,
-        transform: clampTransform(
-          { ...project.transform },
-          get().viewport,
-          getBackgroundImage(project.images),
-        ),
+        transform:
+          needsFit && background && hasViewport
+            ? getFocusedTransform(background, viewport)
+            : clampTransform({ ...project.transform }, viewport, background),
+        pendingFit: needsFit && !hasViewport,
         strokes: project.strokes.map((stroke) => ({
           ...stroke,
           points: stroke.points.map((point) => ({ ...point })),
@@ -294,10 +335,17 @@ export const usePaintStore = create<PaintState>((set, get) => ({
   setBrushSize: (brushSize) => set({ brushSize }),
   setOpacity: (opacity) => set({ opacity }),
   setViewport: (viewport) =>
-    set((s) => ({
-      viewport,
-      transform: clampTransform(s.transform, viewport, getBackgroundImage(s.images)),
-    })),
+    set((s) => {
+      const background = getBackgroundImage(s.images);
+      if (s.pendingFit && background && viewport.width > 0 && viewport.height > 0) {
+        return {
+          viewport,
+          pendingFit: false,
+          transform: getFocusedTransform(background, viewport),
+        };
+      }
+      return { viewport, transform: clampTransform(s.transform, viewport, background) };
+    }),
 
   setTransform: (transform) =>
     set((s) => ({
@@ -380,10 +428,30 @@ export const usePaintStore = create<PaintState>((set, get) => ({
       future: [],
     })),
   extendStroke: (id, p) =>
-    set((st) => ({
-      strokes: st.strokes.map((s) => (s.id === id ? { ...s, points: [...s.points, p] } : s)),
-    })),
+    set((st) => {
+      const index = st.strokes.length - 1;
+      const active = st.strokes[index];
+      if (!active || active.id !== id) return {};
+      // Append in place (O(1)) instead of copying the whole point list per move.
+      active.points.push(p);
+      const strokes = st.strokes.slice();
+      strokes[index] = { ...active };
+      return { strokes };
+    }),
   endStroke: () => {},
+  cancelStroke: (id) =>
+    set((st) => {
+      const last = st.strokes[st.strokes.length - 1];
+      if (!last || last.id !== id) return {};
+      const previous = st.history[st.history.length - 1];
+      return {
+        strokes: st.strokes.slice(0, -1),
+        history:
+          previous && previous.strokes.length === st.strokes.length - 1
+            ? st.history.slice(0, -1)
+            : st.history,
+      };
+    }),
 
   addImage: (img) =>
     set((s) => {

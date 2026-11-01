@@ -1,4 +1,5 @@
 import type { PaintProject } from "@/lib/projects";
+import { renderStrokeLayer } from "@/lib/strokeRender";
 import { cardThemes, type ProjectFilter, type ProjectSort } from "./constants";
 
 export function getProjectBounds(project: PaintProject) {
@@ -67,54 +68,40 @@ export function drawThumbnailImages(
     context.save();
     context.globalAlpha = image.opacity;
     context.globalCompositeOperation = multiply ? "multiply" : "source-over";
-    context.drawImage(element, image.x, image.y, image.width, image.height);
+    const rotation = image.rotation ?? 0;
+    if (rotation) {
+      context.translate(image.x + image.width / 2, image.y + image.height / 2);
+      context.rotate(rotation);
+      context.drawImage(element, -image.width / 2, -image.height / 2, image.width, image.height);
+    } else {
+      context.drawImage(element, image.x, image.y, image.width, image.height);
+    }
     context.restore();
   }
 }
 
 export function drawThumbnailStrokes(context: CanvasRenderingContext2D, project: PaintProject) {
-  for (const stroke of project.strokes) {
-    if (stroke.points.length === 0) continue;
-
-    context.save();
-    context.globalAlpha = stroke.opacity;
-    context.lineCap = "round";
-    context.lineJoin = "round";
-    context.lineWidth = stroke.size;
-    context.globalCompositeOperation =
-      stroke.tool === "eraser"
-        ? "destination-out"
-        : stroke.tool === "marker"
-          ? "multiply"
-          : "source-over";
-    context.strokeStyle = stroke.color;
-    context.fillStyle = stroke.color;
-
-    if (stroke.points.length === 1) {
-      const [point] = stroke.points;
-      context.beginPath();
-      context.arc(point.x, point.y, stroke.size / 2, 0, Math.PI * 2);
-      context.fill();
-      context.restore();
-      continue;
-    }
-
-    context.beginPath();
-    context.moveTo(stroke.points[0].x, stroke.points[0].y);
-
-    for (let index = 1; index < stroke.points.length - 1; index += 1) {
-      const point = stroke.points[index];
-      const nextPoint = stroke.points[index + 1];
-      const middleX = (point.x + nextPoint.x) / 2;
-      const middleY = (point.y + nextPoint.y) / 2;
-      context.quadraticCurveTo(point.x, point.y, middleX, middleY);
-    }
-
-    const lastPoint = stroke.points.at(-1)!;
-    context.lineTo(lastPoint.x, lastPoint.y);
-    context.stroke();
-    context.restore();
-  }
+  // Draw on a separate layer so eraser strokes don't cut through the page.
+  const { width, height } = context.canvas;
+  const matrix = context.getTransform();
+  const background = project.images.find((image) => image.kind !== "sticker");
+  const layer = renderStrokeLayer(
+    width,
+    height,
+    (layerCtx) => {
+      layerCtx.setTransform(matrix);
+      if (background) {
+        layerCtx.beginPath();
+        layerCtx.rect(background.x, background.y, background.width, background.height);
+        layerCtx.clip();
+      }
+    },
+    project.strokes,
+  );
+  context.save();
+  context.setTransform(1, 0, 0, 1, 0, 0);
+  context.drawImage(layer, 0, 0);
+  context.restore();
 }
 
 function hashString(value: string) {
@@ -211,6 +198,30 @@ export function sortProjects(projects: PaintProject[], sort: ProjectSort) {
         );
     }
   });
+}
+
+/** Kid-friendly relative time: "Just now", "Today", "Yesterday", "3 days ago". */
+export function formatRelativeDay(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "Recently";
+
+  const elapsed = Date.now() - date.getTime();
+  if (elapsed < 60_000) return "Just now";
+
+  const startOfToday = new Date();
+  startOfToday.setHours(0, 0, 0, 0);
+  const days = Math.ceil((startOfToday.getTime() - date.getTime()) / 86_400_000);
+
+  if (days <= 0) return "Today";
+  if (days === 1) return "Yesterday";
+  if (days < 7) return `${days} days ago`;
+  return formatProjectDate(value);
+}
+
+/** A small, stable tilt so the gallery looks like pinned-up drawings. */
+export function getCardTilt(id: string) {
+  const tilts = [-1.6, 0.9, -0.7, 1.4, -1.1, 0.5];
+  return tilts[hashString(id) % tilts.length];
 }
 
 export function formatProjectDate(value: string) {

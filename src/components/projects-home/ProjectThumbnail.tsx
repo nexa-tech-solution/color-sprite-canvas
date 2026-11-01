@@ -52,7 +52,7 @@ export function ProjectThumbnail({ project }: { project: PaintProject }) {
       canvas.height = height;
 
       const bounds = getProjectBounds(thumbnailProject);
-      const scale = Math.min((width - 68) / bounds.width, (height - 68) / bounds.height);
+      const scale = Math.min((width - 40) / bounds.width, (height - 40) / bounds.height);
       const offsetX = (width - bounds.width * scale) / 2 - bounds.minX * scale;
       const offsetY = (height - bounds.height * scale) / 2 - bounds.minY * scale;
 
@@ -116,17 +116,13 @@ export function ProjectThumbnail({ project }: { project: PaintProject }) {
   }, [hasContent, isFreeCanvasProject, thumbnailRevision]);
 
   return (
-    <div className="relative aspect-[1/1] overflow-hidden">
-      <div className="absolute inset-x-7 bottom-4 h-5 rounded-full bg-[#dbe6f8]/55 blur-md" />
-
-      <div className="relative h-full w-full overflow-hidden rounded-[18px] bg-white shadow-[inset_0_1px_0_rgba(255,255,255,0.9),0_20px_35px_-28px_rgba(83,105,155,0.42)]">
-        <canvas
-          ref={canvasRef}
-          role="img"
-          aria-label={`Thumbnail of ${project.name}`}
-          className="h-full w-full"
-        />
-      </div>
+    <div className="relative aspect-square overflow-hidden rounded-[6px] bg-white ring-1 ring-inset ring-[#f1ece3]">
+      <canvas
+        ref={canvasRef}
+        role="img"
+        aria-label={`Thumbnail of ${project.name}`}
+        className="h-full w-full"
+      />
     </div>
   );
 }
