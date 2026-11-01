@@ -40,12 +40,31 @@ function gmailWebUrl(topic: FeedbackTopic, message: string) {
   return `https://mail.google.com/mail/?${params.toString()}`;
 }
 
-function gmailAppUrl(topic: FeedbackTopic, message: string) {
+export function gmailAppUrl(topic: FeedbackTopic, message: string) {
   return `googlegmail://co?to=${encodeURIComponent(FEEDBACK_EMAIL)}&subject=${encodeURIComponent(subject(topic))}&body=${encodeURIComponent(body(topic, message))}`;
 }
 
-function mailtoUrl(topic: FeedbackTopic, message: string) {
+export function mailtoUrl(topic: FeedbackTopic, message: string) {
   return `mailto:${FEEDBACK_EMAIL}?subject=${encodeURIComponent(subject(topic))}&body=${encodeURIComponent(body(topic, message))}`;
+}
+
+/** iPhone/iPad (incl. iPadOS that pretends to be a Mac), browser or app shell. */
+export function isIOS() {
+  if (typeof navigator === "undefined") return false;
+  return (
+    /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+    (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1)
+  );
+}
+
+/**
+ * On iOS we let the grown-up tap "Open Gmail" / "Other email app" themselves:
+ * iOS gives no reliable way to tell whether `googlegmail://` opened, so any
+ * automatic fallback ends up launching Apple Mail. A shell that handles
+ * OPEN_EMAIL picks the app natively, so it doesn't need the choice.
+ */
+export function needsEmailAppChoice() {
+  return isIOS() && !window.__nativeCapabilities?.openEmail;
 }
 
 /** Open exactly one new tab and leave the current page alone. */
