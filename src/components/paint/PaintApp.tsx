@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { COLORING_PAGES } from "@/lib/coloringPages";
+import { COLORING_PAGES, findColoringPage } from "@/lib/coloringPages";
 import { useIsMobile, useIsTablet } from "@/hooks/use-mobile";
 import { usePaintStore } from "@/stores/paintStore";
 import { CanvasSurface } from "./CanvasSurface";
@@ -44,9 +44,7 @@ export function PaintApp({ startPageId }: { startPageId?: string } = {}) {
 
     let cancelled = false;
     // A page picked on the home screen skips the welcome card entirely.
-    const pickedPage = startPageId
-      ? COLORING_PAGES.find((page) => page.id === startPageId)
-      : undefined;
+    const pickedPage = startPageId ? findColoringPage(startPageId) : undefined;
 
     buildColoringBookBackground(pickedPage ?? COLORING_PAGES[0])
       .then((background) => {

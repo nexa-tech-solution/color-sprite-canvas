@@ -5,6 +5,7 @@ import { COLORING_PAGES, coloringPageThumbToSrc, type ColoringPage } from "@/lib
 import { openImagePicker } from "@/lib/nativeBridge";
 import type { CanvasImage } from "@/lib/projects";
 import { buildPhotoColoringPage } from "@/components/paint/paintUtils";
+import { PremiumSection } from "@/components/contest/PremiumPages";
 import {
   Dialog,
   DialogClose,
@@ -137,6 +138,7 @@ export function PagePickerSheet({
                 onPick={(page) => onPick({ kind: "page", page })}
               />
             ))}
+            <PremiumSection onPick={(page) => onPick({ kind: "page", page })} />
           </div>
         </div>
 

@@ -40,8 +40,18 @@ export interface Transform {
   scale: number;
 }
 
+export interface ContestEntryCopy {
+  contestId: string;
+  submittedAt: string;
+  /** Local copy of exactly what was sent (WebP/JPEG data URL), viewable offline. */
+  image: string;
+}
+
 export interface PaintProject {
   id: string;
+  /** Set when the project was started from a contest. */
+  contestId?: string;
+  submission?: ContestEntryCopy;
   name: string;
   isFavorite?: boolean;
   progress?: number;
@@ -249,6 +259,7 @@ export function makeBlankProject(overrides: Partial<PaintProject> = {}): PaintPr
     isFavorite: overrides.isFavorite ?? false,
     progress: overrides.progress ?? 0,
     preferBlankCanvas: overrides.preferBlankCanvas ?? false,
+    contestId: overrides.contestId,
     createdAt: overrides.createdAt ?? now,
     updatedAt: overrides.updatedAt ?? now,
     transform: overrides.transform ?? { ...initialTransform },
@@ -274,6 +285,9 @@ export function saveProject(project: PaintProject) {
     isFavorite: project.isFavorite ?? existing?.isFavorite ?? false,
     progress: project.progress ?? existing?.progress ?? 0,
     preferBlankCanvas: project.preferBlankCanvas ?? existing?.preferBlankCanvas ?? false,
+    // Editor snapshots don't carry contest info — keep what's stored.
+    contestId: project.contestId ?? existing?.contestId,
+    submission: project.submission ?? existing?.submission,
     name: normalizeProjectName(project.name),
     updatedAt: project.updatedAt || new Date().toISOString(),
   };
@@ -326,5 +340,14 @@ export function updateProjectProgress(
   projects[index] = { ...projects[index], progress: normalizedProgress };
   commit(projects, [{ id: projectId, project: projects[index] }]);
 
+  return projects[index];
+}
+
+export function recordContestSubmission(projectId: string, copy: ContestEntryCopy) {
+  const projects = readProjects();
+  const index = projects.findIndex((project) => project.id === projectId);
+  if (index < 0) return null;
+  projects[index] = { ...projects[index], contestId: copy.contestId, submission: copy };
+  commit(projects, [{ id: projectId, project: projects[index] }]);
   return projects[index];
 }

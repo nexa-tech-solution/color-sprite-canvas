@@ -31,3 +31,7 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Contains the admin password
+supabase/seed_admin.sql
+supabase/setup_all.sql

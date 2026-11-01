@@ -6,6 +6,8 @@ export interface ColoringPage {
   height?: number;
   src?: string;
   svg?: string;
+  /** Special page bought with contest stars. */
+  premium?: boolean;
 }
 
 const importedColoringPageModules = import.meta.glob<string>(
@@ -35,6 +37,18 @@ const coloringPageThumbModules = import.meta.glob<string>(
     query: "?url",
   },
 );
+
+const premiumPageModules = import.meta.glob<string>("../assets/premium-pages/*.{png,webp}", {
+  eager: true,
+  import: "default",
+  query: "?url",
+});
+
+const premiumThumbModules = import.meta.glob<string>("../assets/premium-page-thumbs/*.webp", {
+  eager: true,
+  import: "default",
+  query: "?url",
+});
 
 const pageShell =
   'fill="none" stroke="#111827" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"';
@@ -173,4 +187,39 @@ export function coloringPageThumbToSrc(page: ColoringPage) {
 
 export function coloringPageSampleToSrc(page: ColoringPage) {
   return coloringPageSamples.get(page.id) ?? null;
+}
+
+/** Ids match `premium_pages.id` in the database ("premium/<file name>"). */
+export const PREMIUM_PAGES: ColoringPage[] = Object.entries(premiumPageModules)
+  .map(([path, src]): ColoringPage => {
+    const file = path
+      .split("/")
+      .at(-1)!
+      .replace(/\.[^.]+$/, "");
+    return {
+      id: `premium/${file}`,
+      name: titleFromPath(path),
+      category: "Fantasy",
+      src,
+      premium: true,
+    };
+  })
+  .sort((a, b) => a.name.localeCompare(b.name));
+
+for (const [path, src] of Object.entries(premiumThumbModules)) {
+  const file = path
+    .split("/")
+    .at(-1)!
+    .replace(/\.[^.]+$/, "");
+  coloringPageThumbs.set(`premium/${file}`, src);
+}
+
+/** Look up any page (regular or premium) by id. */
+export function findColoringPage(id: string | null | undefined) {
+  if (!id) return null;
+  return (
+    COLORING_PAGES.find((page) => page.id === id) ??
+    PREMIUM_PAGES.find((page) => page.id === id) ??
+    null
+  );
 }

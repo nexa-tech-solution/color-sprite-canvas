@@ -1,6 +1,6 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { lazy, Suspense, useEffect, useState } from "react";
-import { Toaster, toast } from "sonner";
+import { toast } from "sonner";
 import { calculateProjectProgress } from "@/lib/projectProgress";
 import {
   flushProjectWrites,
@@ -11,6 +11,7 @@ import {
   updateProjectProgress,
 } from "@/lib/projects";
 import { projectFromState, usePaintStore } from "@/stores/paintStore";
+import { ContestSubmitBar } from "@/components/contest/ContestSubmit";
 
 const PaintApp = lazy(() =>
   import("@/components/paint/PaintApp").then((module) => ({ default: module.PaintApp })),
@@ -152,7 +153,7 @@ function ProjectEditor() {
       <Suspense fallback={<Loading label="Loading canvas…" />}>
         <PaintApp startPageId={startPageId} />
       </Suspense>
-      <Toaster position="top-center" richColors />
+      <ContestSubmitBar projectId={projectId} />
     </>
   );
 }

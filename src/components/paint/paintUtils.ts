@@ -339,15 +339,10 @@ async function shareExport(blob: Blob, filename: string): Promise<ExportOutcome>
   return (await shareViaShell(blob, filename)) ?? "failed";
 }
 
-export async function exportCanvas(preview?: ExportPreview, action: "save" | "share" = "save") {
-  const state = usePaintStore.getState();
-  const { strokes, images } = state;
-
-  if (!strokes.length && !images.length) {
-    closeExportPreview(preview);
-    toast.error("Nothing to export yet - draw something first!");
-    return;
-  }
+/** Draw the current page + strokes + stickers into a flat canvas (null when empty). */
+export async function renderDrawing(): Promise<HTMLCanvasElement | null> {
+  const { strokes, images } = usePaintStore.getState();
+  if (!strokes.length && !images.length) return null;
 
   const background = getBackgroundImage(images);
 
@@ -394,10 +389,7 @@ export async function exportCanvas(preview?: ExportPreview, action: "save" | "sh
   const scaleFactor = canvas.width / width;
   const ctx = canvas.getContext("2d");
 
-  if (!ctx) {
-    toast.error("Export failed. Please try again.");
-    return;
-  }
+  if (!ctx) return null;
 
   ctx.fillStyle = "#ffffff";
   ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -474,6 +466,24 @@ export async function exportCanvas(preview?: ExportPreview, action: "save" | "sh
       ctx.drawImage(loaded, image.x, image.y, image.width, image.height);
     }
     ctx.restore();
+  }
+
+  return canvas;
+}
+
+export async function exportCanvas(preview?: ExportPreview, action: "save" | "share" = "save") {
+  const state = usePaintStore.getState();
+  if (!state.strokes.length && !state.images.length) {
+    closeExportPreview(preview);
+    toast.error("Nothing to export yet - draw something first!");
+    return;
+  }
+
+  const canvas = await renderDrawing();
+  if (!canvas) {
+    closeExportPreview(preview);
+    toast.error("Export failed. Please try again.");
+    return;
   }
 
   try {

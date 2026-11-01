@@ -10,11 +10,35 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AdminRouteImport } from './routes/admin'
+import { Route as SettingsRouteImport } from './routes/settings'
+import { Route as ContestsIndexRouteImport } from './routes/contests/index'
+import { Route as ContestsContestIdRouteImport } from './routes/contests/$contestId'
 import { Route as ProjectsProjectIdRouteImport } from './routes/projects/$projectId'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminRoute = AdminRouteImport.update({
+  id: '/admin',
+  path: '/admin',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SettingsRoute = SettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ContestsIndexRoute = ContestsIndexRouteImport.update({
+  id: '/contests/',
+  path: '/contests/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ContestsContestIdRoute = ContestsContestIdRouteImport.update({
+  id: '/contests/$contestId',
+  path: '/contests/$contestId',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ProjectsProjectIdRoute = ProjectsProjectIdRouteImport.update({
@@ -25,28 +49,63 @@ const ProjectsProjectIdRoute = ProjectsProjectIdRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/admin': typeof AdminRoute
+  '/settings': typeof SettingsRoute
+  '/contests/$contestId': typeof ContestsContestIdRoute
   '/projects/$projectId': typeof ProjectsProjectIdRoute
+  '/contests/': typeof ContestsIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/admin': typeof AdminRoute
+  '/settings': typeof SettingsRoute
+  '/contests/$contestId': typeof ContestsContestIdRoute
   '/projects/$projectId': typeof ProjectsProjectIdRoute
+  '/contests': typeof ContestsIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/admin': typeof AdminRoute
+  '/settings': typeof SettingsRoute
+  '/contests/$contestId': typeof ContestsContestIdRoute
   '/projects/$projectId': typeof ProjectsProjectIdRoute
+  '/contests/': typeof ContestsIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/projects/$projectId'
+  fullPaths:
+    | '/'
+    | '/admin'
+    | '/settings'
+    | '/contests/$contestId'
+    | '/projects/$projectId'
+    | '/contests/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/projects/$projectId'
-  id: '__root__' | '/' | '/projects/$projectId'
+  to:
+    | '/'
+    | '/admin'
+    | '/settings'
+    | '/contests/$contestId'
+    | '/projects/$projectId'
+    | '/contests'
+  id:
+    | '__root__'
+    | '/'
+    | '/admin'
+    | '/settings'
+    | '/contests/$contestId'
+    | '/projects/$projectId'
+    | '/contests/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AdminRoute: typeof AdminRoute
+  SettingsRoute: typeof SettingsRoute
+  ContestsContestIdRoute: typeof ContestsContestIdRoute
   ProjectsProjectIdRoute: typeof ProjectsProjectIdRoute
+  ContestsIndexRoute: typeof ContestsIndexRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -56,6 +115,34 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin': {
+      id: '/admin'
+      path: '/admin'
+      fullPath: '/admin'
+      preLoaderRoute: typeof AdminRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/settings': {
+      id: '/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof SettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/contests/': {
+      id: '/contests/'
+      path: '/contests'
+      fullPath: '/contests/'
+      preLoaderRoute: typeof ContestsIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/contests/$contestId': {
+      id: '/contests/$contestId'
+      path: '/contests/$contestId'
+      fullPath: '/contests/$contestId'
+      preLoaderRoute: typeof ContestsContestIdRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/projects/$projectId': {
@@ -70,7 +157,11 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AdminRoute: AdminRoute,
+  SettingsRoute: SettingsRoute,
+  ContestsContestIdRoute: ContestsContestIdRoute,
   ProjectsProjectIdRoute: ProjectsProjectIdRoute,
+  ContestsIndexRoute: ContestsIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
