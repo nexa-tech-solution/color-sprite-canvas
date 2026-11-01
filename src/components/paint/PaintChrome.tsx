@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import { PAINT_HEADER_SLOT_ID } from "./headerSlot";
 import { AnimatePresence, motion, useDragControls, type PanInfo } from "framer-motion";
 import { Link } from "@tanstack/react-router";
 import {
@@ -365,6 +366,7 @@ export function TopBar({
             >
               <BookOpen className="size-4" /> Pages
             </button>
+            <div id={PAINT_HEADER_SLOT_ID} className="flex shrink-0" />
             <button
               onClick={handleExport}
               disabled={isExporting}

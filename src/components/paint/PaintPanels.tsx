@@ -1,4 +1,5 @@
 import { useMemo, useRef, useState } from "react";
+import { PAINT_MOBILE_SLOT_ID } from "./headerSlot";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   ArrowLeft,
@@ -534,62 +535,73 @@ export function PageSamplePreview({ isMobile }: { isMobile: boolean }) {
   const sampleSrc = page ? coloringPageSampleToSrc(page) : null;
   const mobileBrushDockVisible = isMobile && ["pencil", "brush", "marker", "eraser"].includes(tool);
 
-  if (!page) return null;
+  const position = isMobile
+    ? mobileBrushDockVisible
+      ? "right-3 top-40"
+      : "bottom-24 right-3"
+    : "bottom-24 right-4";
+
+  // On phones the contest "Send" button lives here, next to Preview sample, because the
+  // header has no room for it. (On larger screens it sits in the header.)
+  if (!page && !isMobile) return null;
 
   return (
     <>
-      <button
-        type="button"
-        onClick={() => {
-          if (sampleSrc) {
-            setOpen(true);
-            return;
-          }
-          toast.info("A finished sample has not been added for this page yet.");
-        }}
-        className={`absolute z-40 flex cursor-pointer items-center gap-2 rounded-2xl border border-cyan-100 bg-white/95 px-3 py-2 text-sm font-bold text-cyan-700 shadow-soft backdrop-blur-md transition-all hover:-translate-y-0.5 hover:bg-cyan-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-500 ${
-          isMobile
-            ? mobileBrushDockVisible
-              ? "right-3 top-40"
-              : "bottom-24 right-3"
-            : "bottom-24 right-4"
-        }`}
-        aria-label={`Preview sample for ${page.name}`}
-      >
-        <Eye className="size-4" aria-hidden="true" />
-        <span>Preview sample</span>
-      </button>
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent
-          hideClose
-          className="flex max-h-[92dvh] w-[calc(100%-24px)] max-w-[31rem] flex-col overflow-hidden rounded-2xl border border-cyan-100 bg-white/95 p-4 shadow-float backdrop-blur-xl sm:p-5"
-        >
-          <DialogClose
-            className="absolute right-3 top-3 m-0 size-9 rounded-lg border-cyan-100 bg-white/90 p-0 text-slate-500 hover:bg-cyan-50 hover:text-cyan-700 sm:right-4 sm:top-4"
-            aria-label="Close preview"
+      <div className={`absolute z-40 flex items-center gap-2 ${position}`}>
+        {isMobile && <div id={PAINT_MOBILE_SLOT_ID} className="flex" />}
+        {page && (
+          <button
+            type="button"
+            onClick={() => {
+              if (sampleSrc) {
+                setOpen(true);
+                return;
+              }
+              toast.info("A finished sample has not been added for this page yet.");
+            }}
+            className={`flex cursor-pointer items-center gap-2 rounded-2xl border border-cyan-100 bg-white/95 px-3 py-2 text-sm font-bold text-cyan-700 shadow-soft backdrop-blur-md transition-all hover:-translate-y-0.5 hover:bg-cyan-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-500`}
+            aria-label={`Preview sample for ${page.name}`}
           >
-            <X className="mx-auto size-4" aria-hidden="true" />
-          </DialogClose>
-          <DialogHeader className="space-y-1.5 pr-10 text-left">
-            <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-cyan-600">
-              Preview sample
-            </p>
-            <DialogTitle className="text-xl font-semibold text-slate-800">{page.name}</DialogTitle>
-            <DialogDescription className="text-sm leading-relaxed text-slate-500">
-              A finished coloring sample for inspiration.
-            </DialogDescription>
-          </DialogHeader>
-          {sampleSrc && (
-            <div className="mt-3 flex min-h-0 flex-1 items-center justify-center overflow-hidden rounded-xl border border-cyan-100 bg-white">
-              <img
-                src={sampleSrc}
-                alt={`Finished sample for ${page.name}`}
-                className="max-h-[calc(92dvh-15rem)] w-full object-contain"
-              />
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
+            <Eye className="size-4" aria-hidden="true" />
+            <span>Preview sample</span>
+          </button>
+        )}
+      </div>
+      {page && (
+        <Dialog open={open} onOpenChange={setOpen}>
+          <DialogContent
+            hideClose
+            className="flex max-h-[92dvh] w-[calc(100%-24px)] max-w-[31rem] flex-col overflow-hidden rounded-2xl border border-cyan-100 bg-white/95 p-4 shadow-float backdrop-blur-xl sm:p-5"
+          >
+            <DialogClose
+              className="absolute right-3 top-3 m-0 size-9 rounded-lg border-cyan-100 bg-white/90 p-0 text-slate-500 hover:bg-cyan-50 hover:text-cyan-700 sm:right-4 sm:top-4"
+              aria-label="Close preview"
+            >
+              <X className="mx-auto size-4" aria-hidden="true" />
+            </DialogClose>
+            <DialogHeader className="space-y-1.5 pr-10 text-left">
+              <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-cyan-600">
+                Preview sample
+              </p>
+              <DialogTitle className="text-xl font-semibold text-slate-800">
+                {page.name}
+              </DialogTitle>
+              <DialogDescription className="text-sm leading-relaxed text-slate-500">
+                A finished coloring sample for inspiration.
+              </DialogDescription>
+            </DialogHeader>
+            {sampleSrc && (
+              <div className="mt-3 flex min-h-0 flex-1 items-center justify-center overflow-hidden rounded-xl border border-cyan-100 bg-white">
+                <img
+                  src={sampleSrc}
+                  alt={`Finished sample for ${page.name}`}
+                  className="max-h-[calc(92dvh-15rem)] w-full object-contain"
+                />
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
+      )}
     </>
   );
 }

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { CheckCircle2, Loader2, Send, Star, Trophy, X } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 import {
@@ -14,6 +15,7 @@ import {
 import { getProject, recordContestSubmission } from "@/lib/projects";
 import { friendlyError } from "@/lib/supabase";
 import { renderDrawing } from "@/components/paint/paintUtils";
+import { PAINT_HEADER_SLOT_ID, PAINT_MOBILE_SLOT_ID } from "@/components/paint/headerSlot";
 import {
   Dialog,
   DialogClose,
@@ -35,7 +37,25 @@ function blobToDataUrl(blob: Blob) {
   });
 }
 
-/** Floating "Send to contest" pill shown in the editor for contest projects. */
+/** The editor header renders after the lazy editor loads (and swaps on rotate), so watch for it. */
+function useHeaderSlot() {
+  const [slot, setSlot] = useState<HTMLElement | null>(null);
+  useEffect(() => {
+    const find = () => {
+      const next =
+        document.getElementById(PAINT_MOBILE_SLOT_ID) ??
+        document.getElementById(PAINT_HEADER_SLOT_ID);
+      setSlot((current) => (current === next ? current : next));
+    };
+    find();
+    const observer = new MutationObserver(find);
+    observer.observe(document.body, { childList: true, subtree: true });
+    return () => observer.disconnect();
+  }, []);
+  return slot;
+}
+
+/** "Send" button in the editor header for contest projects (never on top of the drawing). */
 export function ContestSubmitBar({ projectId }: { projectId: string }) {
   const contestId = getProject(projectId)?.contestId;
   const [contest, setContest] = useState<Contest | null>(null);
@@ -52,21 +72,27 @@ export function ContestSubmitBar({ projectId }: { projectId: string }) {
       .catch(() => setContest(null));
   }, [contestId]);
 
-  if (!contestId || !contest || contestPhase(contest, now) !== "live") return null;
+  const slot = useHeaderSlot();
+
+  if (!contestId || !contest || contestPhase(contest, now) !== "live" || !slot) return null;
 
   return (
     <>
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        className="fixed left-3 top-[calc(env(safe-area-inset-top,0px)+10.25rem)] z-30 flex cursor-pointer items-center gap-2 whitespace-nowrap rounded-full bg-amber-400 py-2 pl-3 pr-2 font-display text-[15px] font-semibold text-amber-950 shadow-[0_10px_24px_-10px_rgba(180,120,0,0.8)] transition-transform active:scale-95 sm:left-1/2 sm:top-[calc(env(safe-area-inset-top,0px)+5.5rem)] sm:-translate-x-1/2 sm:pr-3"
-      >
-        <Trophy className="size-4" />
-        {submittedAt ? "Send again" : "Send to contest"}
-        <span className="rounded-full bg-amber-950/10 px-2 py-0.5 text-xs">
-          {formatCountdown(contest.ends_at, now)}
-        </span>
-      </button>
+      {createPortal(
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          aria-label={`${submittedAt ? "Send again" : "Send to contest"}, ${formatCountdown(contest.ends_at, now)} left`}
+          className="flex h-10 cursor-pointer items-center gap-1.5 whitespace-nowrap rounded-full bg-amber-400 pl-2.5 pr-3 font-display text-sm font-semibold text-amber-950 shadow-[0_8px_18px_-10px_rgba(180,120,0,0.8)] transition-transform active:scale-95 sm:h-11 sm:px-4 sm:text-[15px] lg:gap-2 lg:pr-2"
+        >
+          <Trophy className="size-4" />
+          {submittedAt ? "Send again" : "Send"}
+          <span className="hidden rounded-full bg-amber-950/10 px-2 py-0.5 text-xs lg:inline">
+            {formatCountdown(contest.ends_at, now)}
+          </span>
+        </button>,
+        slot,
+      )}
       <SubmitSheet
         open={open}
         onOpenChange={setOpen}
