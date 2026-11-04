@@ -547,8 +547,8 @@ export function PageSamplePreview({ isMobile }: { isMobile: boolean }) {
 
   return (
     <>
-      <div className={`absolute z-40 flex items-center gap-2 ${position}`}>
-        {isMobile && <div id={PAINT_MOBILE_SLOT_ID} className="flex" />}
+      <div className={`absolute z-40 flex max-w-[calc(100vw-24px)] items-center gap-2 ${position}`}>
+        {isMobile && <div id={PAINT_MOBILE_SLOT_ID} className="flex items-center gap-2" />}
         {page && (
           <button
             type="button"
@@ -563,7 +563,10 @@ export function PageSamplePreview({ isMobile }: { isMobile: boolean }) {
             aria-label={`Preview sample for ${page.name}`}
           >
             <Eye className="size-4" aria-hidden="true" />
-            <span>Preview sample</span>
+            <span className="whitespace-nowrap">
+              <span className="hidden min-[360px]:inline">Preview sample</span>
+              <span className="min-[360px]:hidden">Sample</span>
+            </span>
           </button>
         )}
       </div>

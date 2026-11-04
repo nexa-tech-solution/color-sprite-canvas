@@ -201,6 +201,9 @@ function clampTransform(transform: Transform, viewport: Viewport, image: CanvasI
           frame.left - image.x * scale,
         );
 
+  // Zoomed in, the page may be dragged a bit past its top/bottom edge so kids can draw near the
+  // edge without their finger sitting under the toolbars or the bottom panel.
+  const ySlack = Math.min(160, frame.height * 0.3);
   const y =
     scaledHeight <= frame.height
       ? frame.top +
@@ -209,8 +212,8 @@ function clampTransform(transform: Transform, viewport: Viewport, image: CanvasI
         getViewportFocusYOffset(viewport, image)
       : clamp(
           transform.y,
-          frame.top + frame.height - (image.y + image.height) * scale,
-          frame.top - image.y * scale,
+          frame.top + frame.height - (image.y + image.height) * scale - ySlack,
+          frame.top - image.y * scale + ySlack,
         );
 
   return { scale, x, y };

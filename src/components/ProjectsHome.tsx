@@ -61,13 +61,8 @@ export function ProjectsHome() {
   const playerName = usePlayerStore((state) => state.name);
   const { contests, mine, loaded: contestsLoaded } = useContestData();
   const featured = useMemo(() => pickFeaturedContest(contests), [contests]);
-  const playerStatus = usePlayerStore((state) => state.status);
-  // Only ask once we know there's no saved name (not while it's still loading).
-  const mustPickName =
-    playerFeaturesEnabled &&
-    mounted &&
-    !playerName &&
-    (playerStatus === "ready" || playerStatus === "offline");
+  // No name prompt on launch: kids start coloring right away. The name is asked for when it's
+  // needed (sending a contest drawing), or when they tap "Hi, artist!" in the header.
 
   const handleCreateProject = () => setPickerOpen(true);
 
@@ -160,7 +155,15 @@ export function ProjectsHome() {
 
                   <section className="grid grid-cols-2 gap-x-3 gap-y-5 sm:gap-x-5 sm:gap-y-7 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
                     {filteredProjects.map((project) => (
-                      <ProjectCard key={project.id} project={project} />
+                      <ProjectCard
+                        key={project.id}
+                        project={project}
+                        submission={
+                          project.contestId
+                            ? mine.find((entry) => entry.contest_id === project.contestId)
+                            : undefined
+                        }
+                      />
                     ))}
                   </section>
 
@@ -180,13 +183,7 @@ export function ProjectsHome() {
       </div>
       <AppNav />
       <PagePickerSheet open={pickerOpen} onOpenChange={setPickerOpen} onPick={handlePick} />
-      {playerFeaturesEnabled && (
-        <NameSheet
-          open={nameOpen || mustPickName}
-          onOpenChange={setNameOpen}
-          dismissible={!mustPickName}
-        />
-      )}
+      {playerFeaturesEnabled && <NameSheet open={nameOpen} onOpenChange={setNameOpen} />}
     </main>
   );
 }

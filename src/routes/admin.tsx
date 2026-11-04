@@ -1,11 +1,21 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useCallback, useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type FormEvent,
+  type ReactNode,
+} from "react";
 import type { Session, SupabaseClient } from "@supabase/supabase-js";
 import { toast } from "sonner";
 import {
   Check,
   ChevronLeft,
+  ChevronRight,
   Copy,
+  MessageSquare,
   Eye,
   EyeOff,
   Loader2,
@@ -28,9 +38,20 @@ import {
 import { contestPhase, type Contest } from "@/lib/contests";
 import { getAdminSupabase, isBackendConfigured } from "@/lib/supabase";
 import { ConfirmHost, confirmAction } from "@/components/admin/ConfirmDialog";
+import { ChatDrawer } from "@/components/contest/ChatDrawer";
+import { playChime } from "@/lib/chime";
+import {
+  countUnread,
+  fetchContestMessages,
+  mergeMessage,
+  subscribeToMessages,
+  type ChatMessage,
+} from "@/lib/chat";
 import scoresSql from "../../supabase/migrations/0003_scores_leaderboard.sql?raw";
 import deletePlayerSql from "../../supabase/migrations/0004_admin_delete_player.sql?raw";
 import publishedAtSql from "../../supabase/migrations/0005_results_published_at.sql?raw";
+import chatSql from "../../supabase/migrations/0008_submission_chat.sql?raw";
+import realtimeSql from "../../supabase/migrations/0007_realtime_submissions.sql?raw";
 import { create } from "zustand";
 import {
   Dialog,
@@ -673,6 +694,7 @@ function Judging({
   const [loading, setLoading] = useState(true);
   const [publishing, setPublishing] = useState(false);
   const [zoom, setZoom] = useState<AdminSubmission | null>(null);
+  const [page, setPage] = useState(0);
   const phase = contestPhase(contest);
 
   const load = useCallback(async () => {
@@ -695,6 +717,42 @@ function Judging({
     void load();
   }, [load]);
 
+  // Live updates (Supabase Realtime, migration 0007): a kid sends or re-sends a drawing → it shows up
+  // here without pressing refresh. Without the migration nothing arrives and refresh still works.
+  // Delete events can't be filtered by contest, so deletes (done from this page) aren't listened for.
+  const onChangedRef = useRef(onChanged);
+  onChangedRef.current = onChanged;
+  useEffect(() => {
+    const channel = supabase
+      .channel(`admin-submissions-${contest.id}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "submissions",
+          filter: `contest_id=eq.${contest.id}`,
+        },
+        (payload) => {
+          if (payload.eventType !== "INSERT" && payload.eventType !== "UPDATE") return;
+          const row = payload.new as AdminSubmission;
+          setEntries((current) =>
+            current.some((item) => item.id === row.id)
+              ? current.map((item) => (item.id === row.id ? { ...item, ...row } : item))
+              : [...current, row],
+          );
+          if (payload.eventType === "INSERT") {
+            toast.success(`New drawing from ${row.player_name}`);
+            void onChangedRef.current(); // entry count in the contest list
+          }
+        },
+      )
+      .subscribe();
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [contest.id, supabase]);
+
   const imageUrl = useCallback(
     (entry: AdminSubmission) =>
       `${supabase.storage.from("submissions").getPublicUrl(entry.image_path).data.publicUrl}?v=${encodeURIComponent(entry.updated_at)}`,
@@ -716,7 +774,44 @@ function Judging({
   }, [contest.results_published, entries]);
 
   const scored = entries.filter((entry) => entry.score != null).length;
+  const pageCount = Math.max(1, Math.ceil(entries.length / ENTRIES_PER_PAGE));
+  const currentPage = Math.min(page, pageCount - 1);
+  const pageEntries = entries.slice(
+    currentPage * ENTRIES_PER_PAGE,
+    (currentPage + 1) * ENTRIES_PER_PAGE,
+  );
 
+  const entriesRef = useRef(entries);
+  entriesRef.current = entries;
+
+  // Chat: every message of this contest (for unread badges), live over Realtime (migration 0008).
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [chatWith, setChatWith] = useState<AdminSubmission | null>(null);
+  const chatWithRef = useRef(chatWith);
+  chatWithRef.current = chatWith;
+  const [, bumpSeen] = useState(0); // re-render badges after the drawer marks a thread read
+
+  useEffect(() => {
+    let alive = true;
+    // Quietly skip if the chat table isn't installed yet; sending will offer the setup SQL.
+    fetchContestMessages(supabase, contest.id)
+      .then((list) => alive && setMessages(list))
+      .catch((error) => console.warn("[admin] chat unavailable", error?.message));
+    const stop = subscribeToMessages(supabase, { contestId: contest.id }, (message) => {
+      setMessages((current) => mergeMessage(current, message));
+      if (message.sender === "artist" && chatWithRef.current?.id !== message.submission_id) {
+        playChime();
+        const entry = entriesRef.current.find((e) => e.id === message.submission_id);
+        toast(`💬 ${entry?.player_name ?? "An artist"}: ${message.body.slice(0, 80)}`, {
+          action: entry ? { label: "Open chat", onClick: () => setChatWith(entry) } : undefined,
+        });
+      }
+    });
+    return () => {
+      alive = false;
+      stop();
+    };
+  }, [contest.id, supabase]);
   const setScore = async (entry: AdminSubmission, score: number) => {
     const next = entry.score === score ? null : score;
     setEntries((current) =>
@@ -880,86 +975,123 @@ function Judging({
           No entries yet.
         </p>
       ) : (
-        <div className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,260px),1fr))] gap-4">
-          {entries.map((entry) => {
-            const rank = rankOf.get(entry.id);
-            return (
-              <figure
-                key={entry.id}
-                className={`relative overflow-hidden rounded-lg border bg-white ${rank && rank <= 3 ? "border-amber-400 ring-2 ring-amber-200" : "border-slate-200"}`}
-              >
-                {rank && (
-                  <span className="absolute left-2 top-2 z-10 rounded-full bg-white/95 px-2 py-0.5 text-sm font-bold text-slate-800 shadow ring-1 ring-slate-200">
-                    {rank <= 3 ? ["🥇", "🥈", "🥉"][rank - 1] : `#${rank}`}
-                  </span>
-                )}
-                <button
-                  type="button"
-                  onClick={() => setZoom(entry)}
-                  className="block w-full cursor-zoom-in bg-slate-50"
+        <>
+          <div className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,260px),1fr))] gap-4">
+            {pageEntries.map((entry) => {
+              const rank = rankOf.get(entry.id);
+              return (
+                <figure
+                  key={entry.id}
+                  className={`relative overflow-hidden rounded-lg border bg-white ${rank && rank <= 3 ? "border-amber-400 ring-2 ring-amber-200" : "border-slate-200"}`}
                 >
-                  <img
-                    src={imageUrl(entry)}
-                    alt={entry.player_name}
-                    loading="lazy"
-                    className="aspect-[3/4] w-full object-contain"
-                  />
-                </button>
-                <figcaption className="p-2">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="truncate text-sm font-semibold text-slate-800">
-                      {entry.player_name}
+                  {rank && (
+                    <span className="absolute left-2 top-2 z-10 rounded-full bg-white/95 px-2 py-0.5 text-sm font-bold text-slate-800 shadow ring-1 ring-slate-200">
+                      {rank <= 3 ? ["🥇", "🥈", "🥉"][rank - 1] : `#${rank}`}
                     </span>
-                    <button
-                      type="button"
-                      onClick={() => void removeEntry(entry)}
-                      aria-label={`Remove ${entry.player_name}'s drawing`}
-                      title="Remove drawing"
-                      className="-mr-1 flex size-8 shrink-0 items-center justify-center rounded-md text-slate-400 transition-colors hover:bg-rose-50 hover:text-rose-600"
-                    >
-                      <Trash2 className="size-4" />
-                    </button>
-                  </div>
-                  <div className="text-[11px] text-slate-400">{fmt(entry.updated_at)}</div>
-                  {!contest.results_published ? (
-                    <>
-                      <div className="mt-2 flex items-baseline justify-between text-[11px] font-semibold uppercase tracking-wide text-slate-400">
-                        <span>Score</span>
-                        <span className={entry.score != null ? "text-slate-700" : ""}>
-                          {entry.score != null ? `${entry.score}/10` : "not scored"}
-                        </span>
-                      </div>
-                      <div className="mt-1 grid grid-cols-10 gap-0.5" aria-label="Score 1 to 10">
-                        {Array.from({ length: 10 }, (_, index) => index + 1).map((value) => (
-                          <button
-                            key={value}
-                            type="button"
-                            onClick={() => void setScore(entry, value)}
-                            aria-pressed={entry.score === value}
-                            className={`rounded py-1 text-xs font-bold tabular-nums ${
-                              entry.score === value
-                                ? "bg-slate-900 text-white"
-                                : entry.score != null && value < entry.score
-                                  ? "bg-slate-200 text-slate-600"
-                                  : "bg-slate-100 text-slate-500 hover:bg-slate-200"
-                            }`}
-                          >
-                            {value}
-                          </button>
-                        ))}
-                      </div>
-                    </>
-                  ) : (
-                    entry.score != null && (
-                      <div className="mt-1 text-sm text-slate-500">Score {entry.score}/10</div>
-                    )
                   )}
-                </figcaption>
-              </figure>
-            );
-          })}
-        </div>
+                  <button
+                    type="button"
+                    onClick={() => setZoom(entry)}
+                    className="block w-full cursor-zoom-in bg-slate-50"
+                  >
+                    <img
+                      src={imageUrl(entry)}
+                      alt={entry.player_name}
+                      loading="lazy"
+                      className="aspect-[3/4] w-full object-contain"
+                    />
+                  </button>
+                  <figcaption className="p-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="truncate text-sm font-semibold text-slate-800">
+                        {entry.player_name}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => void removeEntry(entry)}
+                        aria-label={`Remove ${entry.player_name}'s drawing`}
+                        title="Remove drawing"
+                        className="-mr-1 flex size-8 shrink-0 items-center justify-center rounded-md text-slate-400 transition-colors hover:bg-rose-50 hover:text-rose-600"
+                      >
+                        <Trash2 className="size-4" />
+                      </button>
+                    </div>
+                    <div className="text-[11px] text-slate-400">{fmt(entry.updated_at)}</div>
+                    {!contest.results_published ? (
+                      <>
+                        <div className="mt-2 flex items-baseline justify-between text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+                          <span>Score</span>
+                          <span className={entry.score != null ? "text-slate-700" : ""}>
+                            {entry.score != null ? `${entry.score}/10` : "not scored"}
+                          </span>
+                        </div>
+                        <div className="mt-1 grid grid-cols-10 gap-0.5" aria-label="Score 1 to 10">
+                          {Array.from({ length: 10 }, (_, index) => index + 1).map((value) => (
+                            <button
+                              key={value}
+                              type="button"
+                              onClick={() => void setScore(entry, value)}
+                              aria-pressed={entry.score === value}
+                              className={`rounded py-1 text-xs font-bold tabular-nums ${
+                                entry.score === value
+                                  ? "bg-slate-900 text-white"
+                                  : entry.score != null && value < entry.score
+                                    ? "bg-slate-200 text-slate-600"
+                                    : "bg-slate-100 text-slate-500 hover:bg-slate-200"
+                              }`}
+                            >
+                              {value}
+                            </button>
+                          ))}
+                        </div>
+                      </>
+                    ) : (
+                      entry.score != null && (
+                        <div className="mt-1 text-sm text-slate-500">Score {entry.score}/10</div>
+                      )
+                    )}
+                    <ChatButton
+                      count={messages.filter((m) => m.submission_id === entry.id).length}
+                      unread={
+                        chatWith?.id === entry.id ? 0 : countUnread(messages, "judge", entry.id)
+                      }
+                      onClick={() => setChatWith(entry)}
+                    />
+                  </figcaption>
+                </figure>
+              );
+            })}
+          </div>
+          <Pager
+            page={currentPage}
+            pageCount={pageCount}
+            total={entries.length}
+            perPage={ENTRIES_PER_PAGE}
+            noun="entries"
+            onChange={(next) => {
+              setPage(next);
+              window.scrollTo({ top: 0, behavior: "smooth" });
+            }}
+          />
+        </>
       )}
+
+      <ChatDrawer
+        supabase={supabase}
+        submissionId={chatWith?.id ?? null}
+        me="judge"
+        artistName={chatWith?.player_name ?? ""}
+        imageUrl={chatWith ? imageUrl(chatWith) : undefined}
+        onClose={() => {
+          setChatWith(null);
+          bumpSeen((n) => n + 1);
+        }}
+        onError={(error) => {
+          reportError(error as { code?: string; message: string });
+          return (error as { message?: string })?.message ?? "Couldn't send";
+        }}
+        onMessage={(message) => setMessages((current) => mergeMessage(current, message))}
+      />
 
       {zoom && (
         <button
@@ -982,6 +1114,7 @@ function Players({ supabase }: { supabase: SupabaseClient }) {
   const [rows, setRows] = useState<PlayerRow[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [query, setQuery] = useState("");
+  const [page, setPage] = useState(0);
 
   const load = useCallback(async () => {
     const { data, error } = await supabase
@@ -1043,7 +1176,20 @@ function Players({ supabase }: { supabase: SupabaseClient }) {
     return true;
   };
 
-  const filtered = rows.filter((row) => row.name.toLowerCase().includes(query.toLowerCase()));
+  // Keep the leaderboard position (#) even while searching or paging.
+  const filtered = rows
+    .map((row, index) => ({ row, position: index + 1 }))
+    .filter(({ row }) => row.name.toLowerCase().includes(query.toLowerCase()));
+  const pageCount = Math.max(1, Math.ceil(filtered.length / PLAYERS_PER_PAGE));
+  const currentPage = Math.min(page, pageCount - 1);
+  const pageRows = filtered.slice(
+    currentPage * PLAYERS_PER_PAGE,
+    (currentPage + 1) * PLAYERS_PER_PAGE,
+  );
+  const search = (next: string) => {
+    setQuery(next);
+    setPage(0);
+  };
 
   return (
     <div className="w-full p-4 sm:p-6">
@@ -1052,15 +1198,15 @@ function Players({ supabase }: { supabase: SupabaseClient }) {
         <input
           placeholder="Search players"
           value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          onKeyDown={(e) => e.key === "Escape" && setQuery("")}
+          onChange={(e) => search(e.target.value)}
+          onKeyDown={(e) => e.key === "Escape" && search("")}
           className={`${INPUT} pl-9 pr-10`}
           aria-label="Search players"
         />
         {query && (
           <button
             type="button"
-            onClick={() => setQuery("")}
+            onClick={() => search("")}
             className="absolute right-2 top-1/2 flex size-7 -translate-y-1/2 items-center justify-center rounded-md text-slate-400 hover:bg-slate-100 hover:text-slate-600"
             aria-label="Clear search"
           >
@@ -1096,9 +1242,9 @@ function Players({ supabase }: { supabase: SupabaseClient }) {
                   </td>
                 </tr>
               ))}
-            {filtered.map((row, index) => (
+            {pageRows.map(({ row, position }) => (
               <tr key={row.device_id} className="border-t border-slate-100">
-                <td className="px-3 py-2 text-slate-400">{index + 1}</td>
+                <td className="px-3 py-2 text-slate-400">{position}</td>
                 <td className="px-3 py-2 font-semibold text-slate-800">{row.name}</td>
                 <td className="px-3 py-2 text-right tabular-nums">{row.points}</td>
                 <td className="px-3 py-2 text-right">
@@ -1139,7 +1285,7 @@ function Players({ supabase }: { supabase: SupabaseClient }) {
                 No players match "{query}".{" "}
                 <button
                   type="button"
-                  onClick={() => setQuery("")}
+                  onClick={() => search("")}
                   className="font-semibold text-violet-600 hover:underline"
                 >
                   Clear search
@@ -1149,6 +1295,14 @@ function Players({ supabase }: { supabase: SupabaseClient }) {
           </p>
         )}
       </div>
+      <Pager
+        page={currentPage}
+        pageCount={pageCount}
+        total={filtered.length}
+        perPage={PLAYERS_PER_PAGE}
+        noun="players"
+        onChange={setPage}
+      />
       <EditStarsDialog
         player={editing}
         onClose={() => setEditing(null)}
@@ -1160,9 +1314,99 @@ function Players({ supabase }: { supabase: SupabaseClient }) {
   );
 }
 
-// Migrations the admin page relies on. Both are safe to run again, so the setup dialog always offers both.
+const ENTRIES_PER_PAGE = 12;
+const PLAYERS_PER_PAGE = 10;
+
+/** "1–12 of 40" with previous/next; buttons are disabled when everything fits on one page. */
+function Pager({
+  page,
+  pageCount,
+  total,
+  perPage,
+  noun,
+  onChange,
+}: {
+  page: number;
+  pageCount: number;
+  total: number;
+  perPage: number;
+  noun: string;
+  onChange: (page: number) => void;
+}) {
+  if (total === 0) return null;
+  const from = page * perPage + 1;
+  const to = Math.min(total, (page + 1) * perPage);
+  const button =
+    "inline-flex h-9 items-center gap-1 rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-600 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40";
+  return (
+    <nav
+      aria-label={`${noun} pages`}
+      className="mt-4 flex flex-wrap items-center justify-between gap-2 text-sm text-slate-500"
+    >
+      <span className="tabular-nums">
+        {from}–{to} of {total} {noun}
+      </span>
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={() => onChange(page - 1)}
+          disabled={page === 0}
+          className={button}
+        >
+          <ChevronLeft className="size-4" /> Prev
+        </button>
+        <span className="tabular-nums">
+          Page {page + 1} / {pageCount}
+        </span>
+        <button
+          type="button"
+          onClick={() => onChange(page + 1)}
+          disabled={page >= pageCount - 1}
+          className={button}
+        >
+          Next <ChevronRight className="size-4" />
+        </button>
+      </div>
+    </nav>
+  );
+}
+
+/** Opens the chat with this artist; a red badge counts messages not read yet. */
+function ChatButton({
+  count,
+  unread,
+  onClick,
+}: {
+  count: number;
+  unread: number;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`mt-2 flex w-full items-center justify-center gap-1.5 rounded-md py-1.5 text-xs font-semibold transition-colors ${
+        unread
+          ? "bg-violet-600 text-white hover:bg-violet-700"
+          : "bg-slate-100 text-slate-600 hover:bg-violet-50 hover:text-violet-700"
+      }`}
+    >
+      <MessageSquare key={unread} className={`size-3.5 ${unread ? "chat-ring" : ""}`} />
+      {count ? `Chat (${count})` : "Chat"}
+      {unread > 0 && (
+        <span className="rounded-full bg-rose-500 px-1.5 text-[10px] leading-4 text-white">
+          {unread} new
+        </span>
+      )}
+    </button>
+  );
+}
+
+// Migrations the admin page relies on. All are safe to run again, so the setup dialog always offers all of them.
 const SETUP_SQL =
-  [scoresSql, deletePlayerSql, publishedAtSql].map((sql) => sql.trim()).join("\n\n") + "\n";
+  [scoresSql, deletePlayerSql, publishedAtSql, realtimeSql, chatSql]
+    .map((sql) => sql.trim())
+    .join("\n\n") + "\n";
 // 42703 missing column · PGRST202 missing function · PGRST204 missing column (writes) · PGRST205 missing table/view
 const MISSING_SCHEMA = new Set(["42703", "PGRST202", "PGRST204", "PGRST205"]);
 const useSetupStore = create<{ open: boolean }>(() => ({ open: false }));

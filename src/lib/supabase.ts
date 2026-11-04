@@ -42,6 +42,8 @@ export function friendlyError(error: unknown): string {
     not_signed_in: "Please check your internet and try again.",
     admin_only: "Only grown-up judges can do that.",
     already_published: "Results are already published.",
+    slow_down: "Whoa, that's a lot of messages! Wait a minute and try again.",
+    not_allowed: "You can only chat about your own drawing.",
   };
   for (const [code, text] of Object.entries(map)) {
     if (message.includes(code)) return text;

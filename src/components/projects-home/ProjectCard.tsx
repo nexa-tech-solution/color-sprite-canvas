@@ -11,7 +11,10 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { Star, Trash2 } from "lucide-react";
+import { Star, Trash2, Trophy } from "lucide-react";
+import type { MySubmission } from "@/lib/contests";
+import { submissionImageUrl } from "@/lib/supabase";
+import { KidChatButton } from "@/components/contest/KidChatButton";
 import { deleteProject, toggleProjectFavorite, type PaintProject } from "@/lib/projects";
 import { formatRelativeDay, getCardTilt, getProjectMetrics } from "./utils";
 import { ProjectThumbnail } from "./ProjectThumbnail";
@@ -47,7 +50,14 @@ function ProgressBar({
   );
 }
 
-export function ProjectCard({ project }: { project: PaintProject }) {
+export function ProjectCard({
+  project,
+  submission,
+}: {
+  project: PaintProject;
+  /** This device's sent entry, when the drawing is for a contest and was sent. */
+  submission?: MySubmission;
+}) {
   const metrics = getProjectMetrics(project);
   const { theme, progress } = metrics;
   const isDone = progress >= 90;
@@ -89,6 +99,12 @@ export function ProjectCard({ project }: { project: PaintProject }) {
                 Done!
               </span>
             )}
+            {project.contestId && (
+              <span className="absolute left-1.5 top-1.5 inline-flex max-w-[calc(100%-3rem)] -rotate-2 items-center gap-1 whitespace-nowrap rounded-full bg-amber-400 px-2 py-0.5 font-display text-[11px] font-semibold text-amber-950 shadow-sm ring-2 ring-white">
+                <Trophy className="size-3 shrink-0" />
+                {submission || project.submission ? "Sent" : "Contest"}
+              </span>
+            )}
             {isNew && (
               <span className="absolute bottom-2 left-2 -rotate-2 rounded-md bg-white/95 px-2 py-0.5 font-display text-[11px] font-semibold text-slate-500 shadow-sm ring-1 ring-slate-100">
                 Ready to color
@@ -114,9 +130,17 @@ export function ProjectCard({ project }: { project: PaintProject }) {
         </Link>
 
         <div className="mt-1.5 flex items-center justify-between gap-2 px-0.5">
-          <span className="truncate text-[11px] font-semibold text-[#a19a8c] sm:text-xs">
+          <span className="min-w-0 flex-1 truncate text-[11px] font-semibold text-[#a19a8c] sm:text-xs">
             {formatRelativeDay(project.updatedAt)}
           </span>
+
+          {submission && (
+            <KidChatButton
+              submissionId={submission.id}
+              imageUrl={submissionImageUrl(submission.image_path, submission.updated_at)}
+              variant="card"
+            />
+          )}
 
           <AlertDialog>
             <AlertDialogTrigger asChild>

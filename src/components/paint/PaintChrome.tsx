@@ -366,7 +366,7 @@ export function TopBar({
             >
               <BookOpen className="size-4" /> Pages
             </button>
-            <div id={PAINT_HEADER_SLOT_ID} className="flex shrink-0" />
+            <div id={PAINT_HEADER_SLOT_ID} className="flex shrink-0 items-center gap-2" />
             <button
               onClick={handleExport}
               disabled={isExporting}

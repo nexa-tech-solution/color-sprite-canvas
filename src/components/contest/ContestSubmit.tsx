@@ -6,14 +6,16 @@ import {
   compressForUpload,
   contestPhase,
   fetchContest,
+  fetchMySubmissions,
   formatCountdown,
   formatResultsDay,
   JUDGE_NAME,
   submitEntry,
   type Contest,
+  type MySubmission,
 } from "@/lib/contests";
 import { getProject, recordContestSubmission } from "@/lib/projects";
-import { friendlyError } from "@/lib/supabase";
+import { friendlyError, submissionImageUrl } from "@/lib/supabase";
 import { renderDrawing } from "@/components/paint/paintUtils";
 import { PAINT_HEADER_SLOT_ID, PAINT_MOBILE_SLOT_ID } from "@/components/paint/headerSlot";
 import {
@@ -24,6 +26,10 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { KID_PRIMARY_BUTTON, KID_SHEET_CLASS } from "@/components/kid/GrownUpGate";
+import { fireConfetti } from "@/lib/confetti";
+import { usePlayerStore } from "@/lib/player";
+import { NameSheet } from "./NameSheet";
+import { KidChatButton } from "./KidChatButton";
 import { useNow } from "./useContestData";
 
 type Step = "preview" | "sending" | "done" | "error";
@@ -55,14 +61,19 @@ function useHeaderSlot() {
   return slot;
 }
 
-/** "Send" button in the editor header for contest projects (never on top of the drawing). */
+/**
+ * Editor header for contest projects (never on top of the drawing): "Send" while the contest is
+ * live, and a chat button with Captain Crayon once this device has sent the drawing.
+ */
 export function ContestSubmitBar({ projectId }: { projectId: string }) {
   const contestId = getProject(projectId)?.contestId;
   const [contest, setContest] = useState<Contest | null>(null);
   const [open, setOpen] = useState(false);
+  const [nameOpen, setNameOpen] = useState(false);
   const [submittedAt, setSubmittedAt] = useState(
     () => getProject(projectId)?.submission?.submittedAt,
   );
+  const [entry, setEntry] = useState<MySubmission | null>(null);
   const now = useNow(30_000);
 
   useEffect(() => {
@@ -70,36 +81,72 @@ export function ContestSubmitBar({ projectId }: { projectId: string }) {
     void fetchContest(contestId)
       .then(setContest)
       .catch(() => setContest(null));
+    void fetchMySubmissions()
+      .then((mine) => setEntry(mine.find((item) => item.contest_id === contestId) ?? null))
+      .catch(() => setEntry(null));
   }, [contestId]);
 
   const slot = useHeaderSlot();
 
-  if (!contestId || !contest || contestPhase(contest, now) !== "live" || !slot) return null;
+  if (!contestId || !contest || !slot) return null;
+  const live = contestPhase(contest, now) === "live";
+  // Sent from this project, or (e.g. from another project/device) already on the server.
+  const sentBefore = Boolean(submittedAt || entry);
+  if (!live && !entry) return null;
 
   return (
     <>
       {createPortal(
-        <button
-          type="button"
-          onClick={() => setOpen(true)}
-          aria-label={`${submittedAt ? "Send again" : "Send to contest"}, ${formatCountdown(contest.ends_at, now)} left`}
-          className="flex h-10 cursor-pointer items-center gap-1.5 whitespace-nowrap rounded-full bg-amber-400 pl-2.5 pr-3 font-display text-sm font-semibold text-amber-950 shadow-[0_8px_18px_-10px_rgba(180,120,0,0.8)] transition-transform active:scale-95 sm:h-11 sm:px-4 sm:text-[15px] lg:gap-2 lg:pr-2"
-        >
-          <Trophy className="size-4" />
-          {submittedAt ? "Send again" : "Send"}
-          <span className="hidden rounded-full bg-amber-950/10 px-2 py-0.5 text-xs lg:inline">
-            {formatCountdown(contest.ends_at, now)}
-          </span>
-        </button>,
+        <>
+          {entry && (
+            <KidChatButton
+              submissionId={entry.id}
+              imageUrl={submissionImageUrl(entry.image_path, entry.updated_at)}
+              variant="header"
+            />
+          )}
+          {live && (
+            <button
+              type="button"
+              // Ask for a name first if the kid skipped it: the judge needs to know who drew it.
+              onClick={() => (usePlayerStore.getState().name ? setOpen(true) : setNameOpen(true))}
+              aria-label={`${sentBefore ? "Send again" : `Send to ${JUDGE_NAME}`}, ${formatCountdown(contest.ends_at, now)} left`}
+              className="flex h-10 cursor-pointer items-center gap-1.5 whitespace-nowrap rounded-full bg-amber-400 pl-2.5 pr-3 font-display text-sm font-semibold text-amber-950 shadow-[0_8px_18px_-10px_rgba(180,120,0,0.8)] transition-transform active:scale-95 sm:h-11 sm:px-4 sm:text-[15px] lg:gap-2 lg:pr-2"
+            >
+              <Trophy className="size-4" />
+              {sentBefore ? (
+                "Send again"
+              ) : (
+                // Small phones: just "Send" so the row fits next to Preview sample.
+                <span>
+                  Send<span className="hidden min-[400px]:inline"> to {JUDGE_NAME}</span>
+                </span>
+              )}
+              <span className="hidden rounded-full bg-amber-950/10 px-2 py-0.5 text-xs lg:inline">
+                {formatCountdown(contest.ends_at, now)}
+              </span>
+            </button>
+          )}
+        </>,
         slot,
       )}
+      <NameSheet
+        open={nameOpen}
+        onOpenChange={(next) => {
+          setNameOpen(next);
+          if (!next && usePlayerStore.getState().name) setOpen(true);
+        }}
+      />
       <SubmitSheet
         open={open}
         onOpenChange={setOpen}
         contest={contest}
         projectId={projectId}
-        resend={Boolean(submittedAt)}
-        onSubmitted={setSubmittedAt}
+        resend={sentBefore}
+        onSubmitted={(at, sent) => {
+          setSubmittedAt(at);
+          setEntry(sent);
+        }}
       />
     </>
   );
@@ -118,7 +165,7 @@ function SubmitSheet({
   contest: Contest;
   projectId: string;
   resend: boolean;
-  onSubmitted: (at: string) => void;
+  onSubmitted: (at: string, entry: MySubmission) => void;
 }) {
   const [step, setStep] = useState<Step>("preview");
   const [image, setImage] = useState<{ blob: Blob; url: string } | null>(null);
@@ -159,9 +206,10 @@ function SubmitSheet({
         image: await blobToDataUrl(image.blob),
       });
       // Copy 2: uploaded for the judges.
-      await submitEntry(contest.id, image.blob);
-      onSubmitted(submittedAt);
+      const sent = await submitEntry(contest.id, image.blob);
+      onSubmitted(submittedAt, sent);
       setStep("done");
+      fireConfetti();
     } catch (err) {
       setError(friendlyError(err));
       setStep("error");
@@ -212,7 +260,7 @@ function SubmitSheet({
                 className={`mt-5 ${KID_PRIMARY_BUTTON}`}
               >
                 <Send className="size-5" />
-                {resend ? "Send again" : "Send it!"}
+                {resend ? "Send again" : `Send to ${JUDGE_NAME}!`}
               </button>
             </div>
           )}

@@ -1,6 +1,15 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
-import { CheckCircle2, ChevronLeft, Clock, Paintbrush, Star, Users, X } from "lucide-react";
+import {
+  CheckCircle2,
+  ChevronLeft,
+  Clock,
+  MessageCircle,
+  Paintbrush,
+  Star,
+  Users,
+  X,
+} from "lucide-react";
 import {
   contestPhase,
   fetchContest,
@@ -20,6 +29,7 @@ import {
 import { coloringPageThumbToSrc, findColoringPage } from "@/lib/coloringPages";
 import { createProject, initProjectStore, listProjects } from "@/lib/projects";
 import { submissionImageUrl } from "@/lib/supabase";
+import { KidChatButton } from "@/components/contest/KidChatButton";
 import { useNow } from "@/components/contest/useContestData";
 import { StarArtists } from "@/components/contest/StarArtists";
 import { LoadingImage } from "@/components/contest/LoadingImage";
@@ -235,6 +245,10 @@ function ContestPage() {
             >
               {contest.description}
             </p>
+          )}
+
+          {entry && (
+            <KidChatButton submissionId={entry.id} imageUrl={myImage ?? undefined} variant="wide" />
           )}
 
           {!compact && (

@@ -241,3 +241,35 @@
     display: none;
   }
 }
+
+/* Chat button wiggle when a new message arrives. */
+@keyframes chat-ring {
+  0%,
+  100% {
+    transform: rotate(0);
+  }
+  15% {
+    transform: rotate(-14deg);
+  }
+  30% {
+    transform: rotate(12deg);
+  }
+  45% {
+    transform: rotate(-9deg);
+  }
+  60% {
+    transform: rotate(6deg);
+  }
+  75% {
+    transform: rotate(-3deg);
+  }
+}
+.chat-ring {
+  animation: chat-ring 0.9s ease-in-out 3;
+  transform-origin: 50% 20%;
+}
+@media (prefers-reduced-motion: reduce) {
+  .chat-ring {
+    animation: none;
+  }
+}
