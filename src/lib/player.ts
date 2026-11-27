@@ -6,7 +6,7 @@ function readAdUnlocks(): string[] {
   try {
     const value: unknown = JSON.parse(window.localStorage.getItem(AD_UNLOCKS_KEY) ?? "[]");
     return Array.isArray(value)
-      ? value.filter((id): id is string => typeof id === "string" && id.startsWith("premium/"))
+      ? value.filter((id): id is string => typeof id === "string" && id.length > 0)
       : [];
   } catch {
     return [];

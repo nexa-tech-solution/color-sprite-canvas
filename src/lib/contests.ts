@@ -208,11 +208,20 @@ export async function buyPremiumPage(pageId: string): Promise<number> {
   return data as number;
 }
 
-export async function fetchPremiumPrices(): Promise<Record<string, number>> {
+let pendingPremiumPrices: Promise<Record<string, number>> | null = null;
+
+/** Share one request across the themed premium sections mounted together. */
+export function fetchPremiumPrices(): Promise<Record<string, number>> {
+  if (pendingPremiumPrices) return pendingPremiumPrices;
   const supabase = getSupabase();
-  if (!supabase) return {};
-  const { data } = await supabase.from("premium_pages").select("id, price").eq("active", true);
-  return Object.fromEntries((data ?? []).map((row) => [row.id as string, row.price as number]));
+  if (!supabase) return Promise.resolve({});
+  pendingPremiumPrices = (async () => {
+    const { data } = await supabase.from("premium_pages").select("id, price").eq("active", true);
+    return Object.fromEntries((data ?? []).map((row) => [row.id as string, row.price as number]));
+  })().finally(() => {
+    pendingPremiumPrices = null;
+  });
+  return pendingPremiumPrices;
 }
 
 export function formatCountdown(target: string, now = Date.now()) {

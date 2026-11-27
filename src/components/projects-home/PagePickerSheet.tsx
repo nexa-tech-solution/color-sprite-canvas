@@ -3,6 +3,7 @@ import { Camera, Loader2, PenLine, X } from "lucide-react";
 import { toast } from "sonner";
 import {
   COLORING_PAGES,
+  PREMIUM_PAGES,
   COLORING_THEMES,
   coloringPageTheme,
   coloringPageThumbToSrc,
@@ -42,7 +43,9 @@ export function PagePickerSheet({
     () =>
       COLORING_THEMES.map((theme) => ({
         ...theme,
-        pages: COLORING_PAGES.filter((page) => coloringPageTheme(page) === theme.id),
+        pages: [...COLORING_PAGES, ...PREMIUM_PAGES].filter(
+          (page) => coloringPageTheme(page) === theme.id,
+        ),
       })).filter((section) => section.pages.length > 0),
     [],
   );
@@ -136,13 +139,18 @@ export function PagePickerSheet({
                   {title}
                 </h3>
                 <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 lg:grid-cols-4">
-                  <SectionPages pages={pages} onPick={(page) => onPick({ kind: "page", page })} />
+                  <SectionPages
+                    pages={pages.filter((page) => !page.premium)}
+                    onPick={(page) => onPick({ kind: "page", page })}
+                  />
+                  <PremiumSection
+                    pages={pages.filter((page) => page.premium)}
+                    showHeading={false}
+                    onPick={(page) => onPick({ kind: "page", page })}
+                  />
                 </div>
               </section>
             ))}
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 lg:grid-cols-4">
-              <PremiumSection onPick={(page) => onPick({ kind: "page", page })} />
-            </div>
           </div>
         </div>
 

@@ -8,6 +8,7 @@ export interface ColoringPage {
   svg?: string;
   /** Special page bought with contest stars. */
   premium?: boolean;
+  unlockPrice?: number;
 }
 
 const importedColoringPageModules = import.meta.glob<string>(
@@ -110,6 +111,9 @@ const coloringPageNames: Record<string, string> = {
   "christmas-santa": "Santa’s Christmas Gifts",
   "christmas-reindeer": "Christmas Reindeer",
   "christmas-snowman": "Snowman & Christmas Tree",
+  "christmas-gingerbread-house": "Christmas Gingerbread House",
+  "christmas-sleigh": "Santa’s Sleigh Ride",
+  "christmas-snow-globe": "Christmas Snow Globe",
   picture1: "Starry Wand Princess",
   picture2: "Blossom Sword Princess",
   picture3: "Little Mermaid",
@@ -150,12 +154,37 @@ function categoryFromPath(path: string): ColoringPage["category"] {
   return "Imported";
 }
 
+// A small selection in each theme can be unlocked with an ad or stars.
+export const THEMED_UNLOCK_PRICES: Record<string, number> = {
+  "christmas-gingerbread-house": 35,
+  "christmas-sleigh": 40,
+  picture2: 35,
+  "fantasy/frost-crown-princess": 40,
+  picture8: 30,
+  "cute/ocean-friends": 30,
+  picture7: 25,
+  "cute/sleepy-owl": 25,
+  picture10: 35,
+  "play/dino-rainbow": 30,
+  "fantasy/baby-dragon": 35,
+  "play/birthday-party": 25,
+};
+
 const importedColoringPages = Object.entries(importedColoringPageModules).map(
   ([path, src]): ColoringPage => ({
     id: path.replace(/^\.\.\/assets\/coloring-pages\//, "").replace(/\.[^.]+$/, ""),
     name: titleFromPath(path),
     category: categoryFromPath(path),
     src,
+    premium: Boolean(
+      THEMED_UNLOCK_PRICES[
+        path.replace(/^\.\.\/assets\/coloring-pages\//, "").replace(/\.[^.]+$/, "")
+      ],
+    ),
+    unlockPrice:
+      THEMED_UNLOCK_PRICES[
+        path.replace(/^\.\.\/assets\/coloring-pages\//, "").replace(/\.[^.]+$/, "")
+      ],
   }),
 );
 
@@ -253,6 +282,12 @@ export const COLORING_THEMES = [
 export type ColoringTheme = (typeof COLORING_THEMES)[number]["id"];
 
 const PAGE_THEME: Record<string, ColoringTheme> = {
+  "magic-unicorn-garden": "magic",
+  "underwater-palace": "ocean",
+  "dragon-treasure-castle": "heroes",
+  "enchanted-treehouse": "nature",
+  "space-adventure": "space",
+  "candy-kingdom": "play",
   picture1: "princesses",
   picture2: "princesses",
   picture3: "ocean",

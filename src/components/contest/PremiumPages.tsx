@@ -27,7 +27,15 @@ const DEFAULT_PRICES: Record<string, number> = {
 };
 
 /** "Special pages" section of the coloring book: locked until bought with stars. */
-export function PremiumSection({ onPick }: { onPick: (page: ColoringPage) => void }) {
+export function PremiumSection({
+  onPick,
+  pages = PREMIUM_PAGES,
+  showHeading = true,
+}: {
+  onPick: (page: ColoringPage) => void;
+  pages?: ColoringPage[];
+  showHeading?: boolean;
+}) {
   const purchases = usePlayerStore((state) => state.purchases);
   const points = usePlayerStore((state) => state.points);
   const [prices, setPrices] = useState(DEFAULT_PRICES);
@@ -36,26 +44,33 @@ export function PremiumSection({ onPick }: { onPick: (page: ColoringPage) => voi
   useEffect(() => {
     if (!playerFeaturesEnabled) return;
     void initPlayer();
-    void fetchPremiumPrices().then((loaded) => {
-      if (Object.keys(loaded).length) setPrices(loaded);
-    });
+    void fetchPremiumPrices()
+      .then((loaded) => {
+        if (Object.keys(loaded).length) setPrices(loaded);
+      })
+      .catch(() => {
+        /* Keep the bundled prices while offline. */
+      });
   }, []);
 
-  if (!playerFeaturesEnabled || PREMIUM_PAGES.length === 0) return null;
-  const forSale = PREMIUM_PAGES.filter((page) => prices[page.id] || purchases.includes(page.id));
+  if (!playerFeaturesEnabled || pages.length === 0) return null;
+  const priceFor = (page: ColoringPage) => prices[page.id] ?? page.unlockPrice ?? 0;
+  const forSale = pages.filter((page) => priceFor(page) || purchases.includes(page.id));
   if (forSale.length === 0) return null;
 
   return (
     <>
-      <div className="col-span-full mt-3 flex items-center justify-between px-1">
-        <h3 className="text-[11px] font-bold uppercase tracking-[0.18em] text-amber-600">
-          <span aria-hidden="true">✨</span> Special pages
-        </h3>
-        <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2.5 py-1 text-xs font-bold text-amber-700 ring-1 ring-amber-100">
-          <Star className="size-3.5 fill-amber-400 text-amber-500" />
-          {points} stars
-        </span>
-      </div>
+      {showHeading && (
+        <div className="col-span-full mt-3 flex items-center justify-between px-1">
+          <h3 className="text-[11px] font-bold uppercase tracking-[0.18em] text-amber-600">
+            <span aria-hidden="true">✨</span> Special pages
+          </h3>
+          <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2.5 py-1 text-xs font-bold text-amber-700 ring-1 ring-amber-100">
+            <Star className="size-3.5 fill-amber-400 text-amber-500" />
+            {points} stars
+          </span>
+        </div>
+      )}
       {forSale.map((page) => {
         const owned = purchases.includes(page.id);
         return (
@@ -63,7 +78,7 @@ export function PremiumSection({ onPick }: { onPick: (page: ColoringPage) => voi
             key={page.id}
             type="button"
             onClick={() => (owned ? onPick(page) : setBuying(page))}
-            aria-label={owned ? `Color ${page.name}` : `${page.name}, ${prices[page.id]} stars`}
+            aria-label={owned ? `Color ${page.name}` : `${page.name}, ${priceFor(page)} stars`}
             className="group relative flex cursor-pointer flex-col rounded-xl border border-amber-200 bg-white p-2 text-left transition-colors hover:border-amber-300 active:scale-[0.97]"
           >
             <span className="relative flex aspect-[4/5] items-center justify-center overflow-hidden rounded-lg bg-white p-2">
@@ -84,13 +99,13 @@ export function PremiumSection({ onPick }: { onPick: (page: ColoringPage) => voi
               )}
             </span>
             <span className="mt-2 flex items-center justify-between gap-2 px-1">
-              <span className="truncate font-display text-sm font-semibold text-slate-700">
+              <span className="min-h-10 font-display text-sm font-semibold text-slate-700">
                 {page.name}
               </span>
               {!owned && (
                 <span className="inline-flex shrink-0 items-center gap-0.5 font-display text-sm font-semibold text-amber-600">
                   <Star className="size-3.5 fill-amber-400 text-amber-500" />
-                  {prices[page.id]}
+                  {priceFor(page)}
                 </span>
               )}
             </span>
@@ -100,7 +115,7 @@ export function PremiumSection({ onPick }: { onPick: (page: ColoringPage) => voi
 
       <BuySheet
         page={buying}
-        price={buying ? prices[buying.id] : 0}
+        price={buying ? priceFor(buying) : 0}
         onClose={() => setBuying(null)}
         onBought={(page) => {
           setBuying(null);
@@ -124,7 +139,7 @@ function BuySheet({
   onBought: (page: ColoringPage) => void;
 }) {
   const points = usePlayerStore((state) => state.points);
-  const [step, setStep] = useState<"look" | "grown-up" | "ad-gate" | "buying" | "watching">("look");
+  const [step, setStep] = useState<"look" | "grown-up" | "buying" | "watching">("look");
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -142,7 +157,7 @@ function BuySheet({
     setStep("watching");
     try {
       if (await unlockPageWithAd(page.id)) onBought(page);
-      else setError("Watch the full ad to unlock this page. Your stars haven't been spent.");
+      else setError("The ad wasn't shown. Please try again. Your stars haven't been spent.");
     } catch (err) {
       setError(friendlyError(err));
     } finally {
@@ -180,14 +195,10 @@ function BuySheet({
         </div>
         {page && (
           <div className="overflow-y-auto px-5 pb-[calc(env(safe-area-inset-bottom,0px)+1.5rem)] sm:pb-6">
-            {step === "grown-up" || step === "ad-gate" ? (
+            {step === "grown-up" ? (
               <GrownUpGate
-                description={
-                  step === "ad-gate"
-                    ? "Answer to watch an ad and unlock this page."
-                    : `Answer to spend ${price} stars on ${page.name}.`
-                }
-                onPass={() => void (step === "ad-gate" ? watchAd() : buy())}
+                description={`Answer to spend ${price} stars on ${page.name}.`}
+                onPass={() => void buy()}
               />
             ) : (
               <div className="text-center">
@@ -212,7 +223,7 @@ function BuySheet({
                   <button
                     type="button"
                     disabled={busy}
-                    onClick={() => setStep("ad-gate")}
+                    onClick={() => void watchAd()}
                     className={`mt-4 ${KID_PRIMARY_BUTTON}`}
                   >
                     {step === "watching" ? (
@@ -220,7 +231,7 @@ function BuySheet({
                     ) : (
                       <Play className="size-5" />
                     )}
-                    {step === "watching" ? "Confirming your reward…" : "Watch ad to unlock"}
+                    {step === "watching" ? "Opening ad…" : "Watch ad to unlock"}
                   </button>
                 )}
                 <button
