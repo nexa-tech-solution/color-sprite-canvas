@@ -128,7 +128,7 @@ export function ProjectsHome() {
       />
 
       <div
-        className={`relative px-3 pt-[calc(env(safe-area-inset-top,0px)+2rem)] lg:pt-[calc(env(safe-area-inset-top,0px)+0.75rem)] sm:px-4 ${navPageClass}`}
+        className={`relative px-3 pt-[calc(max(env(safe-area-inset-top,0px),var(--native-safe-area-top,0px))+2rem)] lg:pt-[calc(env(safe-area-inset-top,0px)+0.75rem)] sm:px-4 ${navPageClass}`}
       >
         <div className="mx-auto max-w-[1400px]">
           <div className="min-w-0">
