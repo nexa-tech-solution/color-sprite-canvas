@@ -3,21 +3,20 @@ import pickColorAdventureTitle from "@/assets/core/pick-a-coloring-adventure-tig
 
 export function HeroBanner({ onCreateProject }: { onCreateProject: () => void }) {
   return (
-    <section className="relative w-full min-w-0 overflow-hidden py-2 sm:px-8 sm:py-5 lg:px-12 lg:py-6">
+    <section className="relative w-full min-w-0 overflow-hidden py-0 sm:px-8 sm:py-2 lg:px-12 lg:py-6">
       <div className="relative mx-auto flex w-full min-w-0 max-w-[920px] flex-col items-center text-center">
         <img
           src={pickColorAdventureTitle}
           alt="Pick a coloring adventure!"
-          className="block h-auto w-full object-contain"
+          className="-mt-2 block h-auto w-full object-contain sm:-mt-3 lg:mt-0"
           draggable={false}
         />
 
-        <p className="-mt-4 max-w-[640px] px-3 text-sm leading-7 text-[#5f6894] sm:-mt-10 sm:max-w-[720px] sm:px-0 sm:text-base md:text-lg lg:max-w-[800px] lg:text-xl">
-          Start something new or continue your masterpiece. Every project stays ready for the next
-          little artist moment.
+        <p className="-mt-6 max-w-[640px] px-3 text-sm leading-5 text-[#5f6894] sm:-mt-12 sm:max-w-[720px] sm:leading-6 sm:px-0 sm:text-base md:text-lg lg:-mt-10 lg:max-w-[800px] lg:text-xl lg:leading-7">
+          Pick a page and make it colorful!
         </p>
 
-        <div className="mt-4 flex w-full min-w-0 justify-center px-2">
+        <div className="mt-3 flex w-full min-w-0 justify-center px-2 lg:mt-4">
           <button
             type="button"
             onClick={onCreateProject}

@@ -132,7 +132,7 @@ export function ProjectsHome() {
       >
         <div className="mx-auto max-w-[1400px]">
           <div className="min-w-0">
-            <div className="min-w-0 space-y-5 px-1 sm:px-3 lg:px-4">
+            <div className="min-w-0 space-y-3 px-1 sm:px-3 lg:space-y-5 lg:px-4">
               {playerFeaturesEnabled && <PlayerBar onEditName={() => setNameOpen(true)} />}
 
               <HeroBanner onCreateProject={handleCreateProject} />
