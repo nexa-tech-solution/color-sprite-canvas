@@ -21,6 +21,7 @@ import { AppNav, useNavPageClass } from "./nav/AppNav";
 import { playerFeaturesEnabled, usePlayerStore } from "@/lib/player";
 import { pickFeaturedContest } from "@/lib/contests";
 import { NameSheet } from "./contest/NameSheet";
+import { trackEvent } from "@/lib/nativeBridge";
 import { DailyCheckin } from "./contest/DailyCheckin";
 import { PlayerBar } from "./contest/PlayerBar";
 import { ContestBanner, ContestBannerSkeleton } from "./contest/ContestBanner";
@@ -76,6 +77,10 @@ export function ProjectsHome() {
   const handleCreateProject = () => setPickerOpen(true);
 
   const handlePick = (pick: PagePick) => {
+    trackEvent(
+      "page_pick",
+      pick.kind === "page" ? { kind: "page", page: pick.page.id } : { kind: pick.kind },
+    );
     const project = createProject({
       name:
         pick.kind === "page"

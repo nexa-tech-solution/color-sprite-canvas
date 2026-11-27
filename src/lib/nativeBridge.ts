@@ -19,6 +19,10 @@
  *     Answer `{ requestId, received: true }` first if the save shows UI, so the web
  *     side stops its "is this shell too old?" timer while the user decides.
  *
+ *   { type: "LOG_EVENT", name, params }
+ *     Firebase Analytics event (see trackEvent). Uncaught page errors are reported by the
+ *     shell's own injected script as { type: "WEB_ERROR", message, stack }.
+ *
  *   { type: "OPEN_URL", url }
  *     Open another app (googlegmail://…, mailto:…) with Linking.openURL(url).
  *
@@ -77,6 +81,15 @@ export const NATIVE_MEDIA_EVENT = "nativemediachange";
 
 export function isNativeShell(): boolean {
   return typeof window !== "undefined" && typeof window.ReactNativeWebView !== "undefined";
+}
+
+/**
+ * Firebase Analytics event via the shell; no-op in a browser. Name: letters, digits, _ (≤40).
+ * Params: string/number/boolean only; the shell drops anything else.
+ */
+export function trackEvent(name: string, params?: Record<string, string | number | boolean>): void {
+  if (!isNativeShell()) return;
+  window.ReactNativeWebView?.postMessage(JSON.stringify({ type: "LOG_EVENT", name, params }));
 }
 
 export function getNativeMediaState(): NativeMediaState | undefined {
