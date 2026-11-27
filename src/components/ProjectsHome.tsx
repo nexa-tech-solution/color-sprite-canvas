@@ -1,4 +1,4 @@
-import { useNavigate } from "@tanstack/react-router";
+import { useNavigate, useSearch } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import {
   createProject,
@@ -28,6 +28,7 @@ import { useContestData } from "./contest/useContestData";
 
 export function ProjectsHome() {
   const navigate = useNavigate();
+  const { open: pushOpen, _push: pushId } = useSearch({ from: "/" });
   const navPageClass = useNavPageClass();
   const [mounted, setMounted] = useState(false);
   const [projects, setProjects] = useState<PaintProject[]>([]);
@@ -58,6 +59,12 @@ export function ProjectsHome() {
   }, []);
 
   const [pickerOpen, setPickerOpen] = useState(false);
+  useEffect(() => {
+    if (!mounted || pushOpen !== "page-picker") return;
+    setPickerOpen(true);
+    // Consume the intent so refresh/back does not reopen a dismissed sheet.
+    void navigate({ to: "/", search: {}, replace: true });
+  }, [mounted, pushOpen, pushId, navigate]);
   const [nameOpen, setNameOpen] = useState(false);
   const playerName = usePlayerStore((state) => state.name);
   const { contests, mine, loaded: contestsLoaded } = useContestData();
