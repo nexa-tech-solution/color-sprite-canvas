@@ -584,7 +584,9 @@ function Shell({ children }: { children: ReactNode }) {
   const navPageClass = useNavPageClass({ bottomTabs: false });
   return (
     <main className="min-h-[100dvh] bg-[linear-gradient(180deg,#fff7ec_0%,#f9fbff_40%)]">
-      <div className={`px-4 pt-[calc(env(safe-area-inset-top,0px)+0.75rem)] ${navPageClass}`}>
+      <div
+        className={`px-4 pt-[calc(env(safe-area-inset-top,0px)+1.5rem)] lg:pt-[calc(env(safe-area-inset-top,0px)+0.75rem)] ${navPageClass}`}
+      >
         <div className="mx-auto max-w-xl">
           <Link
             to="/contests"

@@ -110,13 +110,16 @@ export function ProjectsHome() {
 
   return (
     <main className="relative min-h-[100dvh] overflow-x-clip bg-[#f9fbff] text-slate-900">
+      {/* Under a notch the art starts below the status bar so its star and pencil stay visible;
+          this strip fills the gap with the art's own top-edge colours. */}
+      <div className="pointer-events-none fixed inset-x-0 top-0 h-[env(safe-area-inset-top,0px)] lg:hidden bg-[linear-gradient(to_right,#fed4f4,#fdcdea_25%,#ffdfc3_50%,#ffe9ba_75%,#f3f1d4)]" />
       <div
-        className="pointer-events-none fixed inset-x-0 top-0 aspect-[16/9] bg-[length:100%_auto] bg-top bg-no-repeat [mask-image:linear-gradient(to_bottom,black_55%,transparent)]"
+        className="pointer-events-none fixed inset-x-0 top-[max(0px,calc(env(safe-area-inset-top,0px)-1.5rem))] lg:top-0 aspect-[16/9] bg-[length:100%_auto] bg-top bg-no-repeat [mask-image:linear-gradient(to_bottom,black_55%,transparent)]"
         style={{ backgroundImage: `url(${background1})` }}
       />
 
       <div
-        className={`relative px-3 pt-[calc(env(safe-area-inset-top,0px)+0.75rem)] sm:px-4 ${navPageClass}`}
+        className={`relative px-3 pt-[calc(env(safe-area-inset-top,0px)+2rem)] lg:pt-[calc(env(safe-area-inset-top,0px)+0.75rem)] sm:px-4 ${navPageClass}`}
       >
         <div className="mx-auto max-w-[1400px]">
           <div className="min-w-0">
