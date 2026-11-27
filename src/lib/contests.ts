@@ -171,6 +171,7 @@ export async function submitEntry(contestId: string, image: Blob): Promise<MySub
   await initPlayer();
   const { deviceId, name } = usePlayerStore.getState();
   if (!deviceId) throw new Error("not_signed_in");
+  if (!name?.trim()) throw new Error("name_required");
 
   // Path is fixed by the DB trigger + storage policy; always .webp even for a JPEG fallback.
   const path = `${contestId}/${deviceId}.webp`;
@@ -185,7 +186,7 @@ export async function submitEntry(contestId: string, image: Blob): Promise<MySub
       {
         contest_id: contestId,
         device_id: deviceId,
-        player_name: name ?? "Artist",
+        player_name: name,
         image_path: path,
       },
       { onConflict: "contest_id,device_id" },

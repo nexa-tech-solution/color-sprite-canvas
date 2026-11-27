@@ -19,11 +19,13 @@ export function NameSheet({
   open,
   onOpenChange,
   dismissible = true,
+  purpose = "profile",
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  /** First launch: must pick a name (no close). */
+  /** Allow dismissing without saving; contests still require a name before submission. */
   dismissible?: boolean;
+  purpose?: "profile" | "contest";
 }) {
   const current = usePlayerStore((state) => state.name);
   const [value, setValue] = useState(current ?? "");
@@ -90,7 +92,9 @@ export function NameSheet({
             {current ? "Change your name" : "Hi, artist! What's your name?"}
           </DialogTitle>
           <DialogDescription className="mt-1 text-sm text-slate-500">
-            Your name shows on your drawings and in contests. A nickname is great!
+            {purpose === "contest"
+              ? "Choose a nickname to enter this contest and send your drawing."
+              : "A nickname is great! You can also skip this and keep coloring."}
           </DialogDescription>
           <input
             autoFocus
@@ -136,6 +140,16 @@ export function NameSheet({
           >
             {saving ? <Loader2 className="size-5 animate-spin" /> : current ? "Save" : "Let's go!"}
           </button>
+          {dismissible && (
+            <button
+              type="button"
+              disabled={saving}
+              onClick={() => onOpenChange(false)}
+              className="mt-2 flex min-h-11 w-full cursor-pointer items-center justify-center rounded-xl text-sm font-semibold text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700 disabled:cursor-default disabled:opacity-50"
+            >
+              {current || purpose === "contest" ? "Cancel" : "Skip for now"}
+            </button>
+          )}
         </form>
       </DialogContent>
     </Dialog>

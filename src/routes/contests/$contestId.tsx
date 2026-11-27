@@ -29,6 +29,7 @@ import {
 import { coloringPageThumbToSrc, findColoringPage } from "@/lib/coloringPages";
 import { createProject, initProjectStore, listProjects } from "@/lib/projects";
 import { submissionImageUrl } from "@/lib/supabase";
+import { NameSheet } from "@/components/contest/NameSheet";
 import { KidChatButton } from "@/components/contest/KidChatButton";
 import { useNow } from "@/components/contest/useContestData";
 import { StarArtists } from "@/components/contest/StarArtists";
@@ -52,6 +53,7 @@ const MEDAL = ["🥇", "🥈", "🥉"];
 function ContestPage() {
   const { contestId } = Route.useParams();
   const navigate = useNavigate();
+  const [nameOpen, setNameOpen] = useState(false);
   const now = useNow(15_000);
   const [contest, setContest] = useState<Contest | null>(null);
   const [entry, setEntry] = useState<MySubmission | null>(null);
@@ -288,7 +290,7 @@ function ContestPage() {
           {(phase === "live" || phase === "upcoming") && (
             <button
               type="button"
-              onClick={startColoring}
+              onClick={() => (usePlayerStore.getState().name ? startColoring() : setNameOpen(true))}
               disabled={!canJoin}
               className="mt-5 flex h-14 w-full cursor-pointer items-center justify-center gap-2 rounded-xl bg-violet-600 font-display text-lg font-semibold text-white transition-colors hover:bg-violet-700 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400"
             >
@@ -341,6 +343,14 @@ function ContestPage() {
           <StarArtists winners={pastStars} />
         </div>
       )}
+      <NameSheet
+        purpose="contest"
+        open={nameOpen}
+        onOpenChange={(next) => {
+          setNameOpen(next);
+          if (!next && usePlayerStore.getState().name) startColoring();
+        }}
+      />
     </Shell>
   );
 }

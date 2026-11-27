@@ -131,6 +131,7 @@ export function ContestSubmitBar({ projectId }: { projectId: string }) {
         slot,
       )}
       <NameSheet
+        purpose="contest"
         open={nameOpen}
         onOpenChange={(next) => {
           setNameOpen(next);
