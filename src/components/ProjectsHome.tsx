@@ -24,7 +24,7 @@ import { NameSheet } from "./contest/NameSheet";
 import { DailyCheckin } from "./contest/DailyCheckin";
 import { PlayerBar } from "./contest/PlayerBar";
 import { ContestBanner, ContestBannerSkeleton } from "./contest/ContestBanner";
-import { useContestData } from "./contest/useContestData";
+import { useContestData, useNow } from "./contest/useContestData";
 
 export function ProjectsHome() {
   const navigate = useNavigate();
@@ -68,7 +68,8 @@ export function ProjectsHome() {
   const [nameOpen, setNameOpen] = useState(false);
   const playerName = usePlayerStore((state) => state.name);
   const { contests, mine, loaded: contestsLoaded } = useContestData();
-  const featured = useMemo(() => pickFeaturedContest(contests), [contests]);
+  const now = useNow(15_000);
+  const featured = useMemo(() => pickFeaturedContest(contests, now), [contests, now]);
   // No name prompt on launch: kids start coloring right away. The name is asked for when it's
   // needed (sending a contest drawing), or when they tap "Hi, artist!" in the header.
 

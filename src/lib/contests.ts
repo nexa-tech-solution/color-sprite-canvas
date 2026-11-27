@@ -95,25 +95,18 @@ export async function fetchContest(id: string): Promise<Contest | null> {
   return (data as Contest | null) ?? null;
 }
 
-/** The contest worth showing on the home screen: live > upcoming > judging > latest finished. */
-/** How long a finished contest stays on the home banner after it ended. */
-export const FINISHED_BANNER_DAYS = 2;
-
+/** Home banners promote open or upcoming contests; ended contests stay in the contest pages. */
 export function pickFeaturedContest(contests: Contest[], now = Date.now()) {
-  const by = (phase: ContestPhase) =>
-    contests.filter((contest) => contestPhase(contest, now) === phase);
-  const live = by("live").sort((a, b) => +new Date(a.ends_at) - +new Date(b.ends_at));
-  const upcoming = by("upcoming").sort((a, b) => +new Date(a.starts_at) - +new Date(b.starts_at));
-  // Finished contests stay featured for a couple of days after they finished, newest first.
-  // "Finished" means the ranking was published, which is often before ends_at.
-  const finishedAt = (contest: Contest) =>
-    contest.results_published_at
-      ? +new Date(contest.results_published_at)
-      : Math.min(+new Date(contest.ends_at), now);
-  const finished = by("finished")
-    .filter((contest) => now - finishedAt(contest) <= FINISHED_BANNER_DAYS * 86_400_000)
-    .sort((a, b) => finishedAt(b) - finishedAt(a));
-  return live[0] ?? upcoming[0] ?? by("judging")[0] ?? finished[0] ?? null;
+  const eligible = contests.filter(
+    (contest) => !contest.results_published && now < new Date(contest.ends_at).getTime(),
+  );
+  const live = eligible
+    .filter((contest) => contestPhase(contest, now) === "live")
+    .sort((a, b) => +new Date(a.ends_at) - +new Date(b.ends_at));
+  const upcoming = eligible
+    .filter((contest) => contestPhase(contest, now) === "upcoming")
+    .sort((a, b) => +new Date(a.starts_at) - +new Date(b.starts_at));
+  return live[0] ?? upcoming[0] ?? null;
 }
 
 export async function fetchMySubmissions(): Promise<MySubmission[]> {
