@@ -107,6 +107,9 @@ const FALLBACK_COLORING_PAGES: ColoringPage[] = [
 ];
 
 const coloringPageNames: Record<string, string> = {
+  "christmas-santa": "Santa’s Christmas Gifts",
+  "christmas-reindeer": "Christmas Reindeer",
+  "christmas-snowman": "Snowman & Christmas Tree",
   picture1: "Starry Wand Princess",
   picture2: "Blossom Sword Princess",
   picture3: "Little Mermaid",
@@ -163,8 +166,19 @@ const coloringPageSamples = new Map(
   ]),
 );
 
+// Keep seasonal pages first without changing the order of the existing catalog.
+const CHRISTMAS_PAGE_ORDER = ["christmas-santa", "christmas-reindeer", "christmas-snowman"];
+const christmasPageRank = (id: string) => {
+  const index = CHRISTMAS_PAGE_ORDER.indexOf(id);
+  return index < 0 ? CHRISTMAS_PAGE_ORDER.length : index;
+};
+
 export const COLORING_PAGES: ColoringPage[] =
-  importedColoringPages.length > 0 ? importedColoringPages : FALLBACK_COLORING_PAGES;
+  importedColoringPages.length > 0
+    ? [...importedColoringPages].sort(
+        (a, b) => christmasPageRank(a.id) - christmasPageRank(b.id),
+      )
+    : FALLBACK_COLORING_PAGES;
 
 export function coloringPageToSrc(page: ColoringPage) {
   if (page.src) return page.src;
