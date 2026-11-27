@@ -6,6 +6,12 @@ import { friendlyError } from "@/lib/supabase";
 import { usePlayerStore } from "@/lib/player";
 import { fireConfetti } from "@/lib/confetti";
 import {
+  dailyGiftDay,
+  rememberDailyGiftShown,
+  shouldShowDailyGift,
+  wasDailyGiftClaimed,
+} from "@/lib/dailyGiftState";
+import {
   Dialog,
   DialogClose,
   DialogContent,
@@ -25,6 +31,7 @@ export function DailyCheckin({
   const [celebrating, setCelebrating] = useState(false);
   const [rewardDay, setRewardDay] = useState("");
   const shownDay = useRef("");
+  const claimInFlight = useRef(false);
   const [open, setOpen] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
   const [claimed, setClaimed] = useState<boolean | null>(null);
@@ -38,15 +45,9 @@ export function DailyCheckin({
       void dailyCheckinStatus()
         .then((value) => {
           if (!active) return;
-          setRewardDay(
-            new Intl.DateTimeFormat("en-CA", {
-              timeZone: "Asia/Ho_Chi_Minh",
-              year: "numeric",
-              month: "2-digit",
-              day: "2-digit",
-            }).format(new Date()),
-          );
-          setClaimed(value.claimed);
+          const day = dailyGiftDay();
+          setRewardDay(day);
+          setClaimed(value.claimed || wasDailyGiftClaimed(day));
           setReward(value.reward);
           setAvailability("ready");
           setLoadError("");
@@ -74,21 +75,12 @@ export function DailyCheckin({
       shownDay.current === rewardDay
     )
       return;
-    const key = `pastel-paint.daily-gift-popup.${rewardDay}`;
-    try {
-      if (sessionStorage.getItem(key)) {
-        shownDay.current = rewardDay;
-        return;
-      }
-    } catch {
-      /* Storage may be unavailable. */
+    if (!shouldShowDailyGift(rewardDay)) {
+      shownDay.current = rewardDay;
+      return;
     }
     shownDay.current = rewardDay;
-    try {
-      sessionStorage.setItem(key, "shown");
-    } catch {
-      /* The ref still prevents repeated prompts. */
-    }
+    rememberDailyGiftShown(rewardDay);
     setCelebrating(false);
     setOpen(true);
   }, [availability, claimed, rewardDay, allowAutoOpen]);
@@ -101,7 +93,8 @@ export function DailyCheckin({
   }, [waitingForName, playerName, allowAutoOpen]);
 
   const claim = async () => {
-    if (busy || availability !== "ready" || claimed === true) return;
+    if (claimInFlight.current || busy || availability !== "ready" || claimed === true) return;
+    claimInFlight.current = true;
     setBusy(true);
     try {
       const awarded = await claimDailyCheckin();
@@ -121,6 +114,7 @@ export function DailyCheckin({
         setLoadError(friendlyError(error));
       } else toast.error(friendlyError(error));
     } finally {
+      claimInFlight.current = false;
       setBusy(false);
     }
   };
