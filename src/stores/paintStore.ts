@@ -132,7 +132,7 @@ function getSafeAreaInsets() {
 
   const probe = document.createElement("div");
   probe.style.cssText =
-    "position:fixed;visibility:hidden;pointer-events:none;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);";
+    "position:fixed;visibility:hidden;pointer-events:none;padding-top:var(--safe-top);padding-bottom:env(safe-area-inset-bottom,0px);";
   document.body.appendChild(probe);
   const style = getComputedStyle(probe);
   safeAreaCache = {

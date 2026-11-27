@@ -16,7 +16,7 @@ export function PageShell({
   const navPageClass = useNavPageClass();
   return (
     <main className="min-h-[100dvh] bg-[linear-gradient(180deg,#fff7ec_0%,#f9fbff_45%)] text-slate-900">
-      <div className={`px-4 pt-[calc(env(safe-area-inset-top,0px)+1.5rem)] lg:pt-[calc(env(safe-area-inset-top,0px)+1rem)] ${navPageClass}`}>
+      <div className={`px-4 pt-[calc(var(--safe-top)+1.5rem)] lg:pt-[calc(var(--safe-top)+1rem)] ${navPageClass}`}>
         <div className={`mx-auto ${width}`}>
           {title && (
             <header className="mb-5 px-1">

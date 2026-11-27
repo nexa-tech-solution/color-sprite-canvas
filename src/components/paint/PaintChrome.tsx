@@ -187,7 +187,7 @@ export function TopBar({
       initial={{ y: -30, opacity: 0 }}
       animate={{ y: 0, opacity: 1 }}
       transition={{ type: "spring", stiffness: 220, damping: 24 }}
-      className="pointer-events-none absolute inset-x-0 top-0 z-40 pb-3 pt-[calc(env(safe-area-inset-top,0px)+0.75rem)] sm:pb-4 sm:pt-[calc(env(safe-area-inset-top,0px)+1rem)]"
+      className="pointer-events-none absolute inset-x-0 top-0 z-40 pb-3 pt-[calc(var(--safe-top)+0.75rem)] sm:pb-4 sm:pt-[calc(var(--safe-top)+1rem)]"
     >
       <div
         className={`flex ${isMobile ? "px-3" : "flex-col gap-2 sm:flex-row sm:items-center sm:justify-between"}`}
@@ -587,7 +587,7 @@ export function ToolDock({
 
   if (isMobile) {
     return (
-      <aside className="pointer-events-none absolute inset-x-0 top-[calc(env(safe-area-inset-top,0px)+5.25rem)] z-40 flex justify-center px-3 md:hidden">
+      <aside className="pointer-events-none absolute inset-x-0 top-[calc(var(--safe-top)+5.25rem)] z-40 flex justify-center px-3 md:hidden">
         <motion.div
           initial={{ y: -20, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}

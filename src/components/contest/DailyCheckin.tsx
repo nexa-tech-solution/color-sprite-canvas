@@ -124,7 +124,7 @@ export function DailyCheckin({
         <DialogContent
           hideClose
           onOpenAutoFocus={(event) => event.preventDefault()}
-          className="w-[calc(100vw-2rem)] max-w-sm gap-0 overflow-y-auto rounded-[28px] sm:rounded-[28px] border border-amber-100 bg-[linear-gradient(180deg,#fffbeb_0%,#ffffff_75%)] p-6 text-center max-h-[calc(100dvh_-_env(safe-area-inset-top,0px)_-_env(safe-area-inset-bottom,0px)_-_2rem)]"
+          className="w-[calc(100vw-2rem)] max-w-sm gap-0 overflow-y-auto rounded-[28px] sm:rounded-[28px] border border-amber-100 bg-[linear-gradient(180deg,#fffbeb_0%,#ffffff_75%)] p-6 text-center max-h-[calc(100dvh_-_var(--safe-top)_-_env(safe-area-inset-bottom,0px)_-_2rem)]"
         >
           <DialogClose
             disabled={busy}

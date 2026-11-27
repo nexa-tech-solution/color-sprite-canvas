@@ -152,8 +152,8 @@ function RootComponent() {
       <Toaster
         position="top-center"
         richColors
-        offset={{ top: "max(24px, calc(env(safe-area-inset-top, 0px) + 12px))" }}
-        mobileOffset={{ top: "calc(env(safe-area-inset-top, 0px) + 16px)", left: 16, right: 16 }}
+        offset={{ top: "max(24px, calc(var(--safe-top) + 12px))" }}
+        mobileOffset={{ top: "calc(var(--safe-top) + 16px)", left: 16, right: 16 }}
       />
     </QueryClientProvider>
   );
