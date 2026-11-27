@@ -1,0 +1,20 @@
+Daily gift and interstitial unlock setup
+
+Apply migrations/0009_daily_rewards.sql to Supabase.
+Daily gift: 10 stars once per Vietnam calendar day. Artist name required.
+Deploy the web and rebuild the native app for the new ad bridge.
+
+Native configuration: coloring/src/interstitialAdUnits.json
+- iOS: ca-app-pub-3012411444875177/5642699054 (regular Interstitial)
+- Android: supply a separate Android Interstitial ID before enabling release ads.
+- Debug builds always use TestIds.INTERSTITIAL.
+
+Regular interstitial ads have no earned-reward or SSV completion event.
+A voluntarily requested ad unlocks the selected page when it closes successfully.
+A failed load or failed show does not unlock. Unlocks are stored on the device,
+separate from server purchases and star balances; clearing website data removes them.
+Existing point purchases remain server managed. No server SSV endpoint is required.
+The ad duration is controlled by AdMob.
+
+Validation: supabase/tests/rewards.sql against a disposable migrated database;
+coloring/__tests__/interstitialAds.test.ts with isolated Node Jest config.

@@ -21,6 +21,7 @@ import { AppNav, useNavPageClass } from "./nav/AppNav";
 import { playerFeaturesEnabled, usePlayerStore } from "@/lib/player";
 import { pickFeaturedContest } from "@/lib/contests";
 import { NameSheet } from "./contest/NameSheet";
+import { DailyCheckin } from "./contest/DailyCheckin";
 import { PlayerBar } from "./contest/PlayerBar";
 import { ContestBanner, ContestBannerSkeleton } from "./contest/ContestBanner";
 import { useContestData } from "./contest/useContestData";
@@ -127,6 +128,8 @@ export function ProjectsHome() {
               {playerFeaturesEnabled && <PlayerBar onEditName={() => setNameOpen(true)} />}
 
               <HeroBanner onCreateProject={handleCreateProject} />
+
+              {playerFeaturesEnabled && <DailyCheckin onNameRequired={() => setNameOpen(true)} />}
 
               {playerFeaturesEnabled && !contestsLoaded ? (
                 <div className="-mx-4 sm:-mx-7 lg:-mx-8">

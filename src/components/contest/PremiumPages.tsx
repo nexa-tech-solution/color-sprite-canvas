@@ -1,9 +1,11 @@
 import { useEffect, useState } from "react";
-import { Lock, Loader2, Star, X } from "lucide-react";
+import { Lock, Loader2, Star, X, Play } from "lucide-react";
 import { toast } from "sonner";
 import { PREMIUM_PAGES, coloringPageThumbToSrc, type ColoringPage } from "@/lib/coloringPages";
 import { buyPremiumPage, fetchPremiumPrices } from "@/lib/contests";
 import { initPlayer, playerFeaturesEnabled, usePlayerStore } from "@/lib/player";
+import { unlockPageWithAd } from "@/lib/rewards";
+import { shellSupportsInterstitialAds } from "@/lib/nativeBridge";
 import { friendlyError } from "@/lib/supabase";
 import {
   Dialog,
@@ -122,7 +124,7 @@ function BuySheet({
   onBought: (page: ColoringPage) => void;
 }) {
   const points = usePlayerStore((state) => state.points);
-  const [step, setStep] = useState<"look" | "grown-up" | "buying">("look");
+  const [step, setStep] = useState<"look" | "grown-up" | "ad-gate" | "buying" | "watching">("look");
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -133,6 +135,20 @@ function BuySheet({
   }, [page]);
 
   const enough = points >= price;
+  const busy = step === "buying" || step === "watching";
+  const watchAd = async () => {
+    if (!page) return;
+    setError("");
+    setStep("watching");
+    try {
+      if (await unlockPageWithAd(page.id)) onBought(page);
+      else setError("Watch the full ad to unlock this page. Your stars haven't been spent.");
+    } catch (err) {
+      setError(friendlyError(err));
+    } finally {
+      setStep("look");
+    }
+  };
 
   const buy = async () => {
     if (!page) return;
@@ -147,7 +163,7 @@ function BuySheet({
   };
 
   return (
-    <Dialog open={Boolean(page)} onOpenChange={(next) => !next && step !== "buying" && onClose()}>
+    <Dialog open={Boolean(page)} onOpenChange={(next) => !next && !busy && onClose()}>
       <DialogContent
         hideClose
         onOpenAutoFocus={(event) => event.preventDefault()}
@@ -155,6 +171,7 @@ function BuySheet({
       >
         <div className="flex justify-end px-3 pt-3">
           <DialogClose
+            disabled={busy}
             aria-label="Close"
             className="flex size-10 cursor-pointer items-center justify-center rounded-full text-slate-500 hover:bg-slate-100"
           >
@@ -163,10 +180,14 @@ function BuySheet({
         </div>
         {page && (
           <div className="overflow-y-auto px-5 pb-[calc(env(safe-area-inset-bottom,0px)+1.5rem)] sm:pb-6">
-            {step === "grown-up" ? (
+            {step === "grown-up" || step === "ad-gate" ? (
               <GrownUpGate
-                description={`Answer to spend ${price} stars on ${page.name}.`}
-                onPass={() => void buy()}
+                description={
+                  step === "ad-gate"
+                    ? "Answer to watch an ad and unlock this page."
+                    : `Answer to spend ${price} stars on ${page.name}.`
+                }
+                onPass={() => void (step === "ad-gate" ? watchAd() : buy())}
               />
             ) : (
               <div className="text-center">
@@ -184,12 +205,27 @@ function BuySheet({
                 {error && <p className="mt-2 text-sm font-semibold text-rose-500">{error}</p>}
                 {!enough && (
                   <p className="mt-3 rounded-xl bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-700">
-                    You have {points} stars. Join contests to win {price - points} more!
+                    You have {points} stars. Collect daily gifts or join contests to earn more!
                   </p>
+                )}
+                {shellSupportsInterstitialAds() && (
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => setStep("ad-gate")}
+                    className={`mt-4 ${KID_PRIMARY_BUTTON}`}
+                  >
+                    {step === "watching" ? (
+                      <Loader2 className="size-5 animate-spin" />
+                    ) : (
+                      <Play className="size-5" />
+                    )}
+                    {step === "watching" ? "Confirming your reward…" : "Watch ad to unlock"}
+                  </button>
                 )}
                 <button
                   type="button"
-                  disabled={!enough || step === "buying"}
+                  disabled={!enough || busy}
                   onClick={() => setStep("grown-up")}
                   className={`mt-5 ${KID_PRIMARY_BUTTON}`}
                 >

@@ -1,6 +1,26 @@
 import { create } from "zustand";
 import { getSupabase, isBackendConfigured } from "./supabase";
 
+const AD_UNLOCKS_KEY = "pastel-paint.ad-unlocks";
+function readAdUnlocks(): string[] {
+  try {
+    const value: unknown = JSON.parse(window.localStorage.getItem(AD_UNLOCKS_KEY) ?? "[]");
+    return Array.isArray(value)
+      ? value.filter((id): id is string => typeof id === "string" && id.startsWith("premium/"))
+      : [];
+  } catch {
+    return [];
+  }
+}
+
+/** Interstitial unlocks live on this device; server star balances stay independent. */
+export function saveAdUnlock(pageId: string) {
+  const ids = [...new Set([...readAdUnlocks(), pageId])];
+  // Do not claim persistence succeeded when device storage is unavailable.
+  window.localStorage.setItem(AD_UNLOCKS_KEY, JSON.stringify(ids));
+  usePlayerStore.setState((state) => ({ purchases: [...new Set([...state.purchases, ...ids])] }));
+}
+
 const NAME_KEY = "pastel-paint.player-name";
 
 interface PlayerState {
@@ -45,6 +65,9 @@ let initPromise: Promise<void> | null = null;
 
 /** Sign the device in anonymously (once) and load name, points and purchases. */
 export function initPlayer(): Promise<void> {
+  usePlayerStore.setState((state) => ({
+    purchases: [...new Set([...state.purchases, ...readAdUnlocks()])],
+  }));
   if (initPromise) return initPromise;
   if (!usePlayerStore.getState().name) usePlayerStore.setState({ name: readLocalName() });
   const supabase = getSupabase();
@@ -109,7 +132,12 @@ export async function refreshPlayer() {
   ]);
   usePlayerStore.setState({
     points: pointsResult.data?.points ?? 0,
-    purchases: (purchasesResult.data ?? []).map((row) => row.page_id as string),
+    purchases: [
+      ...new Set([
+        ...(purchasesResult.data ?? []).map((row) => row.page_id as string),
+        ...readAdUnlocks(),
+      ]),
+    ],
   });
 }
 

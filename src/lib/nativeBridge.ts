@@ -41,6 +41,7 @@ export type NativeMediaState = {
 
 /** What the shell can do for us. Shells older than the save-image bridge send nothing. */
 export type NativeCapabilities = {
+  interstitialAds?: boolean;
   saveImage?: boolean;
   shareImage?: boolean;
   /** Shell handles OPEN_EMAIL (picks Gmail app → Gmail web → Mail natively). */
@@ -60,6 +61,11 @@ export type NativeSaveImageResult = {
 declare global {
   interface Window {
     ReactNativeWebView?: { postMessage: (message: string) => void };
+    __nativeInterstitialResult?: (result: {
+      requestId: string;
+      earned: boolean;
+      error?: string;
+    }) => void;
     __nativeMedia?: NativeMediaState;
     __nativeCapabilities?: NativeCapabilities;
     /** Called by the shell (via injectJavaScript) to answer a SAVE_IMAGE request. */
@@ -210,4 +216,37 @@ export function subscribeToNativeMedia(listener: () => void): () => void {
   if (typeof window === "undefined") return () => {};
   window.addEventListener(NATIVE_MEDIA_EVENT, listener);
   return () => window.removeEventListener(NATIVE_MEDIA_EVENT, listener);
+}
+
+export function shellSupportsInterstitialAds() {
+  return isNativeShell() && window.__nativeCapabilities?.interstitialAds === true;
+}
+
+export function watchInterstitialAd(): Promise<boolean> {
+  if (!shellSupportsInterstitialAds()) return Promise.reject(new Error("ads_unavailable"));
+  const requestId = crypto.randomUUID();
+  return new Promise((resolve, reject) => {
+    const previous = window.__nativeInterstitialResult;
+    const finish = (earned: boolean, error?: string) => {
+      clearTimeout(timer);
+      window.__nativeInterstitialResult = previous;
+      if (error) reject(new Error(error));
+      else resolve(earned);
+    };
+    const timer = window.setTimeout(() => finish(false, "ad_timeout"), 300_000);
+    window.__nativeInterstitialResult = (result) => {
+      if (result.requestId === requestId) finish(result.earned, result.error);
+      else previous?.(result);
+    };
+    try {
+      window.ReactNativeWebView!.postMessage(
+        JSON.stringify({
+          type: "WATCH_INTERSTITIAL_AD",
+          requestId,
+        }),
+      );
+    } catch {
+      finish(false, "ads_unavailable");
+    }
+  });
 }
