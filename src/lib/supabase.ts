@@ -39,6 +39,7 @@ export function friendlyError(error: unknown): string {
     contest_full: "Sorry, this contest is full.",
     not_enough_points: "You need more stars for this one.",
     page_not_for_sale: "This page isn't available right now.",
+    daily_unavailable: "Daily gifts are being set up. Please try again later.",
     name_required: "Set your artist name first, then collect your reward.",
     ads_unavailable: "No ad is available right now. Please try again later.",
     ad_timeout: "The ad took too long. Please try again.",

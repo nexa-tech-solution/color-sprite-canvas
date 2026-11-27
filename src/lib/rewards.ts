@@ -7,7 +7,10 @@ export async function dailyCheckinStatus(): Promise<{ claimed: boolean; reward: 
   const db = getSupabase();
   if (!db) throw new Error("not_signed_in");
   const { data, error } = await db.rpc("daily_checkin_status");
-  if (error) throw error;
+  if (error) {
+    if (error.code === "PGRST202" || error.code === "42883") throw new Error("daily_unavailable");
+    throw error;
+  }
   return data;
 }
 
@@ -16,7 +19,10 @@ export async function claimDailyCheckin() {
   const db = getSupabase();
   if (!db) throw new Error("not_signed_in");
   const { data, error } = await db.rpc("claim_daily_checkin");
-  if (error) throw error;
+  if (error) {
+    if (error.code === "PGRST202" || error.code === "42883") throw new Error("daily_unavailable");
+    throw error;
+  }
   await refreshPlayer();
   return Boolean(data);
 }
