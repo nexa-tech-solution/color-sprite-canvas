@@ -1,8 +1,10 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Gift, Loader2, Star, Check, X } from "lucide-react";
 import { toast } from "sonner";
 import { claimDailyCheckin, dailyCheckinStatus } from "@/lib/rewards";
 import { friendlyError } from "@/lib/supabase";
+import { usePlayerStore } from "@/lib/player";
+import { fireConfetti } from "@/lib/confetti";
 import {
   Dialog,
   DialogClose,
@@ -11,7 +13,18 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 
-export function DailyCheckin({ onNameRequired }: { onNameRequired: () => void }) {
+export function DailyCheckin({
+  onNameRequired,
+  allowAutoOpen = true,
+}: {
+  onNameRequired: () => void;
+  allowAutoOpen?: boolean;
+}) {
+  const playerName = usePlayerStore((state) => state.name);
+  const [waitingForName, setWaitingForName] = useState(false);
+  const [celebrating, setCelebrating] = useState(false);
+  const [rewardDay, setRewardDay] = useState("");
+  const shownDay = useRef("");
   const [open, setOpen] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
   const [claimed, setClaimed] = useState<boolean | null>(null);
@@ -25,6 +38,14 @@ export function DailyCheckin({ onNameRequired }: { onNameRequired: () => void })
       void dailyCheckinStatus()
         .then((value) => {
           if (!active) return;
+          setRewardDay(
+            new Intl.DateTimeFormat("en-CA", {
+              timeZone: "Asia/Ho_Chi_Minh",
+              year: "numeric",
+              month: "2-digit",
+              day: "2-digit",
+            }).format(new Date()),
+          );
           setClaimed(value.claimed);
           setReward(value.reward);
           setAvailability("ready");
@@ -44,17 +65,56 @@ export function DailyCheckin({ onNameRequired }: { onNameRequired: () => void })
       window.removeEventListener("focus", refresh);
     };
   }, [open, refreshKey]);
+  useEffect(() => {
+    if (
+      !allowAutoOpen ||
+      availability !== "ready" ||
+      claimed !== false ||
+      !rewardDay ||
+      shownDay.current === rewardDay
+    )
+      return;
+    const key = `pastel-paint.daily-gift-popup.${rewardDay}`;
+    try {
+      if (sessionStorage.getItem(key)) {
+        shownDay.current = rewardDay;
+        return;
+      }
+    } catch {
+      /* Storage may be unavailable. */
+    }
+    shownDay.current = rewardDay;
+    try {
+      sessionStorage.setItem(key, "shown");
+    } catch {
+      /* The ref still prevents repeated prompts. */
+    }
+    setCelebrating(false);
+    setOpen(true);
+  }, [availability, claimed, rewardDay, allowAutoOpen]);
+
+  useEffect(() => {
+    if (waitingForName && playerName && allowAutoOpen) {
+      setWaitingForName(false);
+      setOpen(true);
+    }
+  }, [waitingForName, playerName, allowAutoOpen]);
+
   const claim = async () => {
     if (busy || availability !== "ready" || claimed === true) return;
     setBusy(true);
     try {
       const awarded = await claimDailyCheckin();
       setClaimed(true);
-      if (awarded) toast.success(`Daily gift: +${reward} stars!`);
-      else toast.info("You've already collected today's gift. Come back tomorrow!");
+      if (awarded) {
+        setCelebrating(true);
+        fireConfetti({ count: 140, duration: 2600 });
+        toast.success(`Daily gift: +${reward} stars!`);
+      } else toast.info("You've already collected today's gift. Come back tomorrow!");
     } catch (error) {
       if ((error as { message?: string }).message?.includes("name_required")) {
         setOpen(false);
+        setWaitingForName(true);
         onNameRequired();
       } else if ((error as { message?: string }).message === "daily_unavailable") {
         setAvailability("unavailable");
@@ -66,22 +126,6 @@ export function DailyCheckin({ onNameRequired }: { onNameRequired: () => void })
   };
   return (
     <>
-      <div className="flex justify-center">
-        <button
-          type="button"
-          onClick={() => setOpen(true)}
-          className="inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-full border border-amber-200 bg-amber-50 px-5 py-2.5 font-display text-sm font-semibold text-amber-800 transition-colors hover:bg-amber-100 active:scale-[0.98]"
-        >
-          <Gift className="size-5 text-amber-600" /> Daily gift
-          <span className="rounded-full bg-white px-2 py-0.5 text-xs text-amber-700">
-            {claimed ? (
-              <Check className="size-4" aria-label="Collected today" />
-            ) : (
-              `+${reward} stars`
-            )}
-          </span>
-        </button>
-      </div>
       <Dialog open={open} onOpenChange={(next) => !busy && setOpen(next)}>
         <DialogContent
           hideClose
@@ -99,19 +143,21 @@ export function DailyCheckin({ onNameRequired }: { onNameRequired: () => void })
             {claimed ? <Check className="size-11" /> : <Gift className="size-11" />}
           </div>
           <DialogTitle className="mt-4 font-display text-2xl font-semibold text-slate-800">
-            Daily gift
+            {celebrating ? "Hooray! Your gift is here!" : "Daily gift"}
           </DialogTitle>
           <DialogDescription
             className="mt-2 text-sm leading-relaxed text-slate-500"
             aria-live="polite"
           >
-            {availability === "loading"
-              ? "Checking today's gift…"
-              : availability === "unavailable"
-                ? loadError
-                : claimed
-                  ? "You've collected today's gift. Come back tomorrow for more stars!"
-                  : "A little gift for your next masterpiece. Collect your stars today!"}
+            {celebrating
+              ? `You earned ${reward} stars. Time to make something colorful!`
+              : availability === "loading"
+                ? "Checking today's gift…"
+                : availability === "unavailable"
+                  ? loadError
+                  : claimed
+                    ? "You've collected today's gift. Come back tomorrow for more stars!"
+                    : "A little gift for your next masterpiece. Collect your stars today!"}
           </DialogDescription>
           <div className="my-5 flex items-center justify-center gap-2 font-display text-4xl font-semibold text-amber-600">
             <Star className="size-9 fill-amber-400 text-amber-500" />+{reward}
@@ -120,26 +166,34 @@ export function DailyCheckin({ onNameRequired }: { onNameRequired: () => void })
           <button
             type="button"
             onClick={() => {
+              if (celebrating) {
+                setOpen(false);
+                return;
+              }
               if (availability === "unavailable") {
                 setAvailability("loading");
                 setRefreshKey((value) => value + 1);
               } else void claim();
             }}
             disabled={
-              busy || availability === "loading" || (availability === "ready" && claimed === true)
+              busy ||
+              availability === "loading" ||
+              (availability === "ready" && claimed === true && !celebrating)
             }
             className="inline-flex h-12 w-full cursor-pointer items-center justify-center gap-2 rounded-full bg-amber-500 font-display text-base font-semibold text-white hover:bg-amber-600 disabled:cursor-default disabled:bg-amber-100 disabled:text-amber-700"
           >
             {(busy || availability === "loading") && <Loader2 className="size-5 animate-spin" />}
-            {busy
-              ? "Collecting…"
-              : availability === "loading"
-                ? "Checking…"
-                : availability === "unavailable"
-                  ? "Try again"
-                  : claimed
-                    ? "Collected today"
-                    : `Claim +${reward} stars`}
+            {celebrating
+              ? "Awesome!"
+              : busy
+                ? "Collecting…"
+                : availability === "loading"
+                  ? "Checking…"
+                  : availability === "unavailable"
+                    ? "Try again"
+                    : claimed
+                      ? "Collected today"
+                      : `Claim +${reward} stars`}
           </button>
         </DialogContent>
       </Dialog>

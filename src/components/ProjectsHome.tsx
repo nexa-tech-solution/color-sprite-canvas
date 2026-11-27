@@ -136,7 +136,12 @@ export function ProjectsHome() {
 
               <HeroBanner onCreateProject={handleCreateProject} />
 
-              {playerFeaturesEnabled && <DailyCheckin onNameRequired={() => setNameOpen(true)} />}
+              {playerFeaturesEnabled && (
+                <DailyCheckin
+                  allowAutoOpen={!pickerOpen && !nameOpen}
+                  onNameRequired={() => setNameOpen(true)}
+                />
+              )}
 
               {playerFeaturesEnabled && !contestsLoaded ? (
                 <div className="-mx-4 sm:-mx-7 lg:-mx-8">
