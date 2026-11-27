@@ -175,9 +175,7 @@ const christmasPageRank = (id: string) => {
 
 export const COLORING_PAGES: ColoringPage[] =
   importedColoringPages.length > 0
-    ? [...importedColoringPages].sort(
-        (a, b) => christmasPageRank(a.id) - christmasPageRank(b.id),
-      )
+    ? [...importedColoringPages].sort((a, b) => christmasPageRank(a.id) - christmasPageRank(b.id))
     : FALLBACK_COLORING_PAGES;
 
 export function coloringPageToSrc(page: ColoringPage) {
@@ -235,5 +233,71 @@ export function findColoringPage(id: string | null | undefined) {
     COLORING_PAGES.find((page) => page.id === id) ??
     PREMIUM_PAGES.find((page) => page.id === id) ??
     null
+  );
+}
+
+/** Display themes are independent of asset paths, so saved page IDs stay stable. */
+export const COLORING_THEMES = [
+  { id: "christmas", title: "Christmas", emoji: "🎄" },
+  { id: "princesses", title: "Princesses & Fairies", emoji: "👑" },
+  { id: "ocean", title: "Under the Sea", emoji: "🧜‍♀️" },
+  { id: "animals", title: "Animal Friends", emoji: "🐾" },
+  { id: "heroes", title: "Little Heroes", emoji: "⚔️" },
+  { id: "dinosaurs", title: "Dinosaur Adventures", emoji: "🦕" },
+  { id: "space", title: "Space Adventures", emoji: "🚀" },
+  { id: "magic", title: "Magical Worlds", emoji: "🦄" },
+  { id: "play", title: "Play & Celebrate", emoji: "🎈" },
+  { id: "nature", title: "Nature & Rainbows", emoji: "🌈" },
+  { id: "more", title: "More to Color", emoji: "🎨" },
+] as const;
+export type ColoringTheme = (typeof COLORING_THEMES)[number]["id"];
+
+const PAGE_THEME: Record<string, ColoringTheme> = {
+  picture1: "princesses",
+  picture2: "princesses",
+  picture3: "ocean",
+  picture4: "animals",
+  picture5: "princesses",
+  picture6: "magic",
+  picture7: "animals",
+  picture8: "ocean",
+  picture9: "heroes",
+  picture10: "heroes",
+  picture11: "play",
+  picture12: "dinosaurs",
+  "frost-crown-princess": "princesses",
+  "garden-tower-princess": "princesses",
+  "baby-dragon": "magic",
+  "fairy-mushroom-house": "magic",
+  "unicorn-cloud": "magic",
+  "rainbow-and-sun": "nature",
+  "puppy-with-ball": "animals",
+  "happy-dinosaur": "dinosaurs",
+  "ocean-friends": "ocean",
+  "space-rocket": "space",
+  "sleepy-owl": "animals",
+  "friendly-farm-cow": "animals",
+  "beach-sandcastle": "play",
+  "dino-rainbow": "dinosaurs",
+  "birthday-party": "play",
+  "garden-friend": "nature",
+  "cake-princess": "princesses",
+  "kimono-day": "princesses",
+  "space-kitty": "space",
+  "balloon-ride": "play",
+};
+
+export function coloringPageTheme(page: ColoringPage): ColoringTheme {
+  const file = page.id.split("/").at(-1) ?? page.id;
+  if (file.startsWith("christmas-")) return "christmas";
+  return (
+    PAGE_THEME[file] ??
+    (page.category === "Cute"
+      ? "animals"
+      : page.category === "Fantasy"
+        ? "magic"
+        : page.category === "Play"
+          ? "play"
+          : "more")
   );
 }

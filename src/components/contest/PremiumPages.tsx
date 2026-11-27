@@ -49,7 +49,7 @@ export function PremiumSection({ onPick }: { onPick: (page: ColoringPage) => voi
     <>
       <div className="col-span-full mt-3 flex items-center justify-between px-1">
         <h3 className="text-[11px] font-bold uppercase tracking-[0.18em] text-amber-600">
-          Special pages
+          <span aria-hidden="true">✨</span> Special pages
         </h3>
         <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2.5 py-1 text-xs font-bold text-amber-700 ring-1 ring-amber-100">
           <Star className="size-3.5 fill-amber-400 text-amber-500" />

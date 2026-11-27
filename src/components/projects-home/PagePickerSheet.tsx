@@ -1,7 +1,13 @@
 import { useMemo, useRef, useState, type ReactNode } from "react";
 import { Camera, Loader2, PenLine, X } from "lucide-react";
 import { toast } from "sonner";
-import { COLORING_PAGES, coloringPageThumbToSrc, type ColoringPage } from "@/lib/coloringPages";
+import {
+  COLORING_PAGES,
+  COLORING_THEMES,
+  coloringPageTheme,
+  coloringPageThumbToSrc,
+  type ColoringPage,
+} from "@/lib/coloringPages";
 import { openImagePicker } from "@/lib/nativeBridge";
 import type { CanvasImage } from "@/lib/projects";
 import { buildPhotoColoringPage } from "@/components/paint/paintUtils";
@@ -13,14 +19,6 @@ import {
   DialogDescription,
   DialogTitle,
 } from "@/components/ui/dialog";
-
-const CATEGORY_ORDER: ColoringPage["category"][] = ["Imported", "Cute", "Fantasy", "Play"];
-const CATEGORY_LABELS: Record<ColoringPage["category"], string> = {
-  Imported: "Picture pages",
-  Cute: "Cute friends",
-  Fantasy: "Fantasy",
-  Play: "Play time",
-};
 
 export type PagePick =
   | { kind: "page"; page: ColoringPage }
@@ -40,18 +38,14 @@ export function PagePickerSheet({
   onOpenChange: (open: boolean) => void;
   onPick: (pick: PagePick) => void;
 }) {
-  const sections = useMemo(() => {
-    const groups = new Map<ColoringPage["category"], ColoringPage[]>();
-    for (const page of COLORING_PAGES) {
-      const list = groups.get(page.category) ?? [];
-      list.push(page);
-      groups.set(page.category, list);
-    }
-    return [...groups.entries()].sort(
-      ([a], [b]) => CATEGORY_ORDER.indexOf(a) - CATEGORY_ORDER.indexOf(b),
-    );
-  }, []);
-  const showSectionTitles = sections.length > 1;
+  const sections = useMemo(
+    () =>
+      COLORING_THEMES.map((theme) => ({
+        ...theme,
+        pages: COLORING_PAGES.filter((page) => coloringPageTheme(page) === theme.id),
+      })).filter((section) => section.pages.length > 0),
+    [],
+  );
   const fileRef = useRef<HTMLInputElement>(null);
   const [converting, setConverting] = useState(false);
 
@@ -129,16 +123,26 @@ export function PagePickerSheet({
               if (file) void handlePhoto(file);
             }}
           />
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 lg:grid-cols-4">
-            {sections.map(([category, pages]) => (
-              <SectionPages
-                key={category}
-                title={showSectionTitles ? CATEGORY_LABELS[category] : null}
-                pages={pages}
-                onPick={(page) => onPick({ kind: "page", page })}
-              />
+          <div className="mt-5 space-y-6">
+            {sections.map(({ id, title, emoji, pages }) => (
+              <section key={id} aria-labelledby={`page-theme-${id}`}>
+                <h3
+                  id={`page-theme-${id}`}
+                  className="mb-3 flex items-center gap-2 px-1 font-display text-base font-semibold text-slate-700"
+                >
+                  <span aria-hidden="true" className="text-xl">
+                    {emoji}
+                  </span>
+                  {title}
+                </h3>
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 lg:grid-cols-4">
+                  <SectionPages pages={pages} onPick={(page) => onPick({ kind: "page", page })} />
+                </div>
+              </section>
             ))}
-            <PremiumSection onPick={(page) => onPick({ kind: "page", page })} />
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 lg:grid-cols-4">
+              <PremiumSection onPick={(page) => onPick({ kind: "page", page })} />
+            </div>
           </div>
         </div>
 
@@ -156,21 +160,14 @@ export function PagePickerSheet({
 }
 
 function SectionPages({
-  title,
   pages,
   onPick,
 }: {
-  title: string | null;
   pages: ColoringPage[];
   onPick: (page: ColoringPage) => void;
 }) {
   return (
     <>
-      {title && (
-        <h3 className="col-span-full mt-3 px-1 text-[11px] font-bold uppercase tracking-[0.18em] text-slate-400">
-          {title}
-        </h3>
-      )}
       {pages.map((page) => (
         <button
           key={page.id}
@@ -189,7 +186,7 @@ function SectionPages({
               className="h-full w-full object-contain transition-transform duration-200 group-hover:scale-[1.04]"
             />
           </span>
-          <span className="mt-2 block truncate px-1 font-display text-sm font-semibold text-slate-700">
+          <span className="mt-2 block min-h-10 px-1 font-display text-sm font-semibold text-slate-700">
             {page.name}
           </span>
         </button>
